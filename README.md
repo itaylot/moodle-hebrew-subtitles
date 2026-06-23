@@ -11,6 +11,7 @@ SUB-PRO/
 ├── START_HERE.md           # סדר העבודה והצ'קפוינטים
 ├── BUILD_SPEC.md           # האפיון הטכני המלא (מקור אמת)
 ├── MULTI_AGENT_BUILD.md    # חלוקת הבנייה לסוכנים
+├── GOAL.md                 # היעד הסופי + בדיקת הקבלה ("מתי סיימנו")
 ├── CONTRACTS.md            # החוזים הקפואים (A: הודעות פנימיות, B: WebSocket)
 ├── README.md
 ├── extension/              # ⬅️ זה מה שטוענים ב-Chrome (Load unpacked)
