@@ -31,8 +31,19 @@
 { target: 'offscreen', type: 'STOP'  }
 
 // offscreen → SW
-{ type: 'TRANSCRIPT', from: 'offscreen', tabId: number, text: string, isFinal: boolean }
+{ type: 'TRANSCRIPT',    from: 'offscreen', tabId: number, text: string, isFinal: boolean }
+{ type: 'CAPTURE_ENDED', from: 'offscreen', tabId: number, reason?: string }   // הלכידה הסתיימה (STOP/ws נסגר/שגיאה) → ה-SW משדר CAPTURE_STATE{active:false}
 ```
+
+### popup ↔ service-worker (אופציונלי — לסנכרון כפתור ה-popup)
+```js
+// popup → SW
+{ type: 'GET_STATE' }                          // תשובה: { active: boolean, activeTabId: number|null }
+{ type: 'START_CAPTURE', tabId: number }       // popup שולח tabId מפורש (אין לו sender.tab)
+{ type: 'STOP_CAPTURE' }
+```
+
+> **תוספת build (Lead, v1.1):** `CAPTURE_ENDED` ו-`GET_STATE` נוספו בזמן הבנייה. אדיטיביות ותואמות-אחורה — לא משנות את חוזה B ולא את זרימת ה-TRANSCRIPT.
 
 ### אובייקט ה-`Config` (נשלח מ-SW ל-offscreen בהודעת START)
 ה-SW בונה אותו מ-`chrome.storage.sync` (מה שה-UI שמר) + ה-`tabId`:
