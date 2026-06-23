@@ -1,0 +1,8 @@
+# שרת התמלול. ל-mock_server.py מספיק websockets בלבד.
+# ל-server.py (האמיתי) צריך גם numpy + faster-whisper.
+
+websockets>=12.0
+
+# רק לשרת האמיתי (server.py):
+numpy
+faster-whisper
