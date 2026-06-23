@@ -16,7 +16,8 @@
     "*://*.moodlecloud.com/*",
     "*://moodle.*/*",
     "*://*/moodle/*",
-    "*://*.ac.il/*"
+    "*://*.ac.il/*",
+    "*://*.youtube.com/*"
   ],
   "background": {
     "service_worker": "service-worker.js"
@@ -34,7 +35,8 @@
         "*://*.moodlecloud.com/*",
         "*://moodle.*/*",
         "*://*/moodle/*",
-        "*://*.ac.il/*"
+        "*://*.ac.il/*",
+        "*://*.youtube.com/*"
       ],
       "js": ["content.js"],
       "css": ["subtitles.css"],

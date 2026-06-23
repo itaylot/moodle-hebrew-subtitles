@@ -37,7 +37,9 @@ SUB-PRO/
 ## סטטוס בנייה
 
 - [x] שלב 1 — Lead: שלד, `manifest.json`, `CONTRACTS.md`, icons.
-- [ ] שלב 2 — Capture Agent
-- [ ] שלב 2 — UI Agent
-- [ ] שלב 2 — Backend Agent
-- [ ] שלב 3 — אינטגרציה E2E
+- [x] שלב 2 — Capture Agent (service-worker, offscreen, pcm-processor)
+- [x] שלב 2 — UI Agent (content, css, popup, options)
+- [x] שלב 2 — Backend Agent (mock + faster-whisper, חוזה B אומת)
+- [x] שלב 3 — אינטגרציה: אימות סטטי צולב של החוזים. **נותר:** בדיקה ידנית ב-Chrome (ראה [RUN.md](RUN.md)).
+
+➡️ **להרצה ולבדיקת הקבלה (רמה A):** [RUN.md](RUN.md)
