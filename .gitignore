@@ -1,28 +1,20 @@
-# Python / backend
+# Python
 __pycache__/
 *.py[cod]
 .venv/
-.venv312/
 venv/
 env/
-he_result.txt
 *.egg-info/
 
-# מודלים / משקלים גדולים — לא נכנסים לגיט
-*.bin
-*.ct2
+# Node (לא בשימוש — ליתר ביטחון)
+node_modules/
+package*.json
+
+# מדיה ופלט — לא נכנסים לגיט
 models/
 *.wav
 *.mp3
 *.srt
-
-# Node (כלי פיתוח/בדיקה בלבד — לא חלק מהתוסף)
-node_modules/
-package.json
-package-lock.json
-
-# build artifacts (אריזת התוסף)
-dist/
 
 # קבצי עבודה פנימיים — נשארים מקומית, לא עולים ל-GitHub
 START_HERE.md
@@ -31,6 +23,7 @@ GOAL_LEVEL_B.md
 MULTI_AGENT_BUILD.md
 RUN.md
 STORE_LISTING.md
+BUILD_SPEC.md
 
 # OS / IDE
 .DS_Store
@@ -40,3 +33,6 @@ Thumbs.db
 
 # logs
 *.log
+
+# build artifacts
+dist/

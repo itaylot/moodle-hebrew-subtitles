@@ -1,7 +1,7 @@
 @echo off
 REM run.bat - launches the Hebrew Subtitles GUI app. First run: sets up automatically.
 cd /d "%~dp0"
-set VENV=backend\.venv312
+set VENV=.venv
 
 if not exist "%VENV%\Scripts\pythonw.exe" (
   echo ============================================================
@@ -17,7 +17,7 @@ if not exist "%VENV%\Scripts\pythonw.exe" (
     exit /b 1
   )
   "%VENV%\Scripts\python.exe" -m pip install --upgrade pip
-  "%VENV%\Scripts\python.exe" -m pip install -r backend\requirements.txt
+  "%VENV%\Scripts\python.exe" -m pip install -r requirements.txt
 )
 
 start "" "%~dp0%VENV%\Scripts\pythonw.exe" "%~dp0app.py"
