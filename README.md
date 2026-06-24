@@ -40,6 +40,6 @@ SUB-PRO/
 - [x] שלב 2 — Capture Agent (service-worker, offscreen, pcm-processor)
 - [x] שלב 2 — UI Agent (content, css, popup, options)
 - [x] שלב 2 — Backend Agent (mock + faster-whisper, חוזה B אומת)
-- [x] שלב 3 — אינטגרציה: אימות סטטי צולב של החוזים. **נותר:** בדיקה ידנית ב-Chrome (ראה [RUN.md](RUN.md)).
+- [x] שלב 3 — אינטגרציה E2E ✅ **רמה A הושגה** — בדיקת הקבלה 1-7 ([GOAL.md](GOAL.md)) עברה מול שרת mock על YouTube: כתוביות עברית חיות על הסרטון, האודיו נשמר, עצירה נקייה.
 
 ➡️ **להרצה ולבדיקת הקבלה (רמה A):** [RUN.md](RUN.md)
