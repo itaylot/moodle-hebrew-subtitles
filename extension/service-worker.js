@@ -8,9 +8,9 @@
 
 const OFFSCREEN_PATH = 'offscreen.html';
 
-// ברירות מחדל אם אין הגדרות שמורות ב-storage
-// ⚠️ רמה B (הפצה): שנה את ה-endpoint ל-`wss://<your-server>` של השרת המשותף
-//    לפני אריזה לחנות, כדי שמשתמשים לא יצטרכו להגדיר ידנית. ראה GOAL_LEVEL_B.md.
+// ברירות מחדל אם אין הגדרות שמורות ב-storage.
+// ברירת המחדל היא שרת מקומי (self-host) — עובד מיד כשמריצים את backend/server.py.
+// לשרת משותף מרוחק: הגדר `wss://<server>` ב-options (ראה backend/DEPLOY.md).
 const DEFAULT_CONFIG = {
   endpoint: 'ws://localhost:9090',
   language: 'he',

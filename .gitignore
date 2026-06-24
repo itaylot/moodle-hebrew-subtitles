@@ -21,6 +21,14 @@ package-lock.json
 # build artifacts (אריזת התוסף)
 dist/
 
+# קבצי עבודה פנימיים — נשארים מקומית, לא עולים ל-GitHub
+START_HERE.md
+GOAL.md
+GOAL_LEVEL_B.md
+MULTI_AGENT_BUILD.md
+RUN.md
+STORE_LISTING.md
+
 # OS / IDE
 .DS_Store
 Thumbs.db
