@@ -1,13 +1,14 @@
-"""app.py — אפליקציית כתוביות עברית להרצאות (ממשק מודרני, גרירה, בלי שורת פקודה).
+"""app.py — אפליקציית כתוביות עברית להרצאות (עיצוב דשבורד מודרני, גרירה, בלי שורת פקודה).
 
-בוחרים או **גוררים** קובץ הרצאה → "צור כתוביות" → צופים עם כתוביות עברית מסונכרנות.
-מציג שלב נוכחי + אחוז + זמן משוער שנותר.
+בוחרים או גוררים קובץ הרצאה → "צור כתוביות" → צופים עם כתוביות עברית מסונכרנות.
+סרגל צד עם "הרצאות אחרונות", אזור ראשי בהיר עם כרטיסים, שלב + זמן משוער.
 """
 
 import os
 import json
 import time
 import queue
+import pathlib
 import threading
 import webbrowser
 
@@ -18,25 +19,31 @@ from tkinterdnd2 import TkinterDnD, DND_FILES
 MODEL_ACCURATE = "ivrit-ai/whisper-large-v3-turbo-ct2"
 MODEL_FAST = "small"
 
-ACCENT = "#6C5CE7"
-ACCENT_HOVER = "#5a4bd4"
-SUCCESS = "#22c55e"
-CARD = "#26262e"
-CARD_BORDER = "#3a3a44"
-MUTED = "#9aa0aa"
+# ── פלטת צבעים (בהשראת דשבורד סגול/ירוק) ──
+SIDEBAR = "#2E2B4A"
+SIDEBAR_HOVER = "#3b3760"
+BG = "#F3F4FA"
+CARD = "#FFFFFF"
+CARD_BORDER = "#E6E7F0"
+PURPLE = "#6C5CE7"
+PURPLE_HOVER = "#5a4bd4"
+GREEN = "#28D9A0"
+GREEN_HOVER = "#1fbf8c"
+TEXT = "#2D2D3A"
+MUTED = "#9AA0AA"
+SIDE_MUTED = "#b9b6d6"
 
+STORE = pathlib.Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / "heb-subs" / "recent.json"
 VIDEO_EXT = (".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".mp3", ".m4a", ".wav", ".flac", ".ogg")
 
 
 def fmt_time(t: float) -> str:
-    """שניות -> HH:MM:SS,mmm (פורמט SRT)."""
     h = int(t // 3600); m = int((t % 3600) // 60); s = int(t % 60)
     ms = int(round((t - int(t)) * 1000))
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
 def human(sec: float) -> str:
-    """שניות -> טקסט קריא בעברית."""
     sec = max(0, int(sec))
     m, s = divmod(sec, 60)
     if m >= 60:
@@ -45,6 +52,21 @@ def human(sec: float) -> str:
     if m:
         return f"{m}:{s:02d} דק׳"
     return f"{s} שנ׳"
+
+
+def load_recent():
+    try:
+        return json.loads(STORE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def save_recent(items):
+    try:
+        STORE.parent.mkdir(parents=True, exist_ok=True)
+        STORE.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 VIEWER_TEMPLATE = """<!DOCTYPE html>
@@ -67,11 +89,14 @@ VIEWER_TEMPLATE = """<!DOCTYPE html>
 </script></body></html>"""
 
 
-# שילוב customtkinter עם tkinterdnd2 (גרירת קבצים)
 class Tk(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.TkdndVersion = TkinterDnD._require(self)
+
+
+def cfont(size, weight="normal"):
+    return ctk.CTkFont("Segoe UI", size, weight)
 
 
 class App:
@@ -82,86 +107,165 @@ class App:
         self.model_name = None
         self.viewer_path = None
         self.q = queue.Queue()
+        self.recent = load_recent()
 
         root.title("כתוביות עברית להרצאות")
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("light")
+        root.configure(fg_color=BG)
+        root.grid_columnconfigure(1, weight=1)
+        root.grid_rowconfigure(0, weight=1)
 
-        wrap = ctk.CTkFrame(root, fg_color="transparent")
-        wrap.pack(fill="both", expand=True, padx=26, pady=20)
+        self._build_sidebar()
+        self._build_main()
+        self._refresh_recent()
 
-        # ── כותרת ──
-        ctk.CTkLabel(wrap, text="🎬  כתוביות עברית להרצאות",
-                     font=ctk.CTkFont("Segoe UI", 26, "bold")).pack(pady=(0, 2))
-        ctk.CTkLabel(wrap, text="גוררים הרצאה, יוצרים כתוביות, וצופים — הכל כאן.",
-                     font=ctk.CTkFont("Segoe UI", 14), text_color=MUTED).pack(pady=(0, 16))
+    # ── סרגל צד ──
+    def _build_sidebar(self):
+        bar = ctk.CTkFrame(self.root, fg_color=SIDEBAR, width=230, corner_radius=0)
+        bar.grid(row=0, column=0, sticky="nsew")
+        bar.grid_propagate(False)
 
-        # ── אזור גרירה / בחירה ──
-        self.drop = ctk.CTkFrame(wrap, fg_color=CARD, border_color=CARD_BORDER,
-                                 border_width=2, corner_radius=18, height=160)
+        # לוגו + שם
+        top = ctk.CTkFrame(bar, fg_color="transparent")
+        top.pack(fill="x", padx=22, pady=(26, 18))
+        badge = ctk.CTkLabel(top, text="🎬", font=cfont(22), width=44, height=44,
+                             fg_color=PURPLE, corner_radius=12)
+        badge.pack(side="right")
+        ctk.CTkLabel(top, text="כתוביות עברית", font=cfont(16, "bold"),
+                     text_color="#ffffff").pack(side="right", padx=10)
+
+        # כפתור "תמלול חדש"
+        ctk.CTkButton(bar, text="＋  תמלול חדש", height=44, corner_radius=22,
+                      font=cfont(14, "bold"), fg_color=GREEN, hover_color=GREEN_HOVER,
+                      text_color="#0c2a22", command=self.new_session).pack(fill="x", padx=20, pady=(0, 22))
+
+        ctk.CTkLabel(bar, text="הרצאות אחרונות", font=cfont(12, "bold"),
+                     text_color=SIDE_MUTED).pack(anchor="e", padx=24, pady=(0, 6))
+        self.recent_box = ctk.CTkScrollableFrame(bar, fg_color="transparent")
+        self.recent_box.pack(fill="both", expand=True, padx=12, pady=(0, 10))
+
+        ctk.CTkLabel(bar, text="רץ מקומית · בלי עלות", font=cfont(11),
+                     text_color=SIDE_MUTED).pack(side="bottom", pady=14)
+
+    # ── אזור ראשי ──
+    def _build_main(self):
+        main = ctk.CTkFrame(self.root, fg_color="transparent")
+        main.grid(row=0, column=1, sticky="nsew", padx=30, pady=26)
+        main.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(main, text="תמלול הרצאה", font=cfont(24, "bold"),
+                     text_color=TEXT).pack(anchor="e")
+        ctk.CTkLabel(main, text="גוררים קובץ הרצאה, יוצרים כתוביות עברית, וצופים — הכל כאן.",
+                     font=cfont(13), text_color=MUTED).pack(anchor="e", pady=(0, 16))
+
+        # כרטיס גרירה
+        self.drop = ctk.CTkFrame(main, fg_color=CARD, border_color=CARD_BORDER,
+                                 border_width=2, corner_radius=18, height=150)
         self.drop.pack(fill="x", pady=(0, 14))
         self.drop.pack_propagate(False)
-        self.drop_icon = ctk.CTkLabel(self.drop, text="⬇️", font=ctk.CTkFont(size=38))
-        self.drop_icon.pack(pady=(26, 2))
+        self.drop_icon = ctk.CTkLabel(self.drop, text="⬇️", font=cfont(34))
+        self.drop_icon.pack(pady=(24, 2))
         self.drop_title = ctk.CTkLabel(self.drop, text="גררו לכאן קובץ הרצאה",
-                                       font=ctk.CTkFont("Segoe UI", 17, "bold"))
+                                       font=cfont(16, "bold"), text_color=TEXT)
         self.drop_title.pack()
         self.drop_sub = ctk.CTkLabel(self.drop, text="או לחצו לבחירת קובץ מהמחשב",
-                                     font=ctk.CTkFont("Segoe UI", 13), text_color=MUTED)
+                                     font=cfont(12), text_color=MUTED)
         self.drop_sub.pack(pady=(2, 0))
         for w in (self.drop, self.drop_icon, self.drop_title, self.drop_sub):
             w.bind("<Button-1>", lambda e: self.choose())
             w.bind("<Enter>", lambda e: self._hover(True))
             w.bind("<Leave>", lambda e: self._hover(False))
-        root.drop_target_register(DND_FILES)
-        root.dnd_bind("<<Drop>>", self.on_drop)
+        self.root.drop_target_register(DND_FILES)
+        self.root.dnd_bind("<<Drop>>", self.on_drop)
 
-        # ── מצב + כפתור ראשי ──
-        row = ctk.CTkFrame(wrap, fg_color="transparent")
+        # שורת מצב + כפתור ראשי
+        row = ctk.CTkFrame(main, fg_color="transparent")
         row.pack(fill="x", pady=(0, 12))
         self.mode = ctk.CTkSegmentedButton(row, values=["מדויק", "מהיר"],
-                                           selected_color=ACCENT, selected_hover_color=ACCENT_HOVER)
+                                           selected_color=PURPLE, selected_hover_color=PURPLE_HOVER,
+                                           font=cfont(13))
         self.mode.set("מדויק")
         self.mode.pack(side="right")
-        ctk.CTkLabel(row, text="איכות התמלול:", font=ctk.CTkFont("Segoe UI", 13),
-                     text_color=MUTED).pack(side="right", padx=10)
-
-        self.go_btn = ctk.CTkButton(wrap, text="צור כתוביות  ▶", height=46,
-                                    font=ctk.CTkFont("Segoe UI", 16, "bold"), corner_radius=12,
-                                    fg_color=ACCENT, hover_color=ACCENT_HOVER,
+        ctk.CTkLabel(row, text="איכות:", font=cfont(13), text_color=MUTED).pack(side="right", padx=10)
+        self.go_btn = ctk.CTkButton(row, text="צור כתוביות  ▶", height=40, width=170,
+                                    font=cfont(15, "bold"), corner_radius=12,
+                                    fg_color=PURPLE, hover_color=PURPLE_HOVER,
                                     command=self.start, state="disabled")
-        self.go_btn.pack(fill="x", pady=(0, 12))
+        self.go_btn.pack(side="left")
 
-        # ── כרטיס סטטוס: שלב + פס + זמן ──
-        self.status_card = ctk.CTkFrame(wrap, fg_color=CARD, corner_radius=14)
+        # כרטיס סטטוס
+        self.status_card = ctk.CTkFrame(main, fg_color=CARD, border_color=CARD_BORDER,
+                                        border_width=1, corner_radius=16)
         self.status_card.pack(fill="x", pady=(0, 12))
         self.stage_lbl = ctk.CTkLabel(self.status_card, text="מוכן להתחיל",
-                                      font=ctk.CTkFont("Segoe UI", 15, "bold"))
-        self.stage_lbl.pack(pady=(12, 6))
-        self.prog = ctk.CTkProgressBar(self.status_card, height=14, corner_radius=7,
-                                       progress_color=ACCENT)
+                                      font=cfont(15, "bold"), text_color=TEXT)
+        self.stage_lbl.pack(pady=(14, 6))
+        self.prog = ctk.CTkProgressBar(self.status_card, height=12, corner_radius=6, progress_color=PURPLE)
         self.prog.set(0)
-        self.prog.pack(fill="x", padx=18, pady=(0, 8))
+        self.prog.pack(fill="x", padx=20, pady=(0, 8))
         self.detail_lbl = ctk.CTkLabel(self.status_card, text="בחרו קובץ כדי להתחיל",
-                                       font=ctk.CTkFont("Segoe UI", 12), text_color=MUTED)
-        self.detail_lbl.pack(pady=(0, 12))
+                                       font=cfont(12), text_color=MUTED)
+        self.detail_lbl.pack(pady=(0, 14))
 
-        # ── יומן תמלול ──
-        self.log = ctk.CTkTextbox(wrap, font=ctk.CTkFont("Consolas", 12), corner_radius=12,
-                                  fg_color=CARD, wrap="word", height=120)
+        # יומן
+        self.log = ctk.CTkTextbox(main, font=ctk.CTkFont("Consolas", 12), corner_radius=14,
+                                  fg_color=CARD, border_color=CARD_BORDER, border_width=1,
+                                  text_color=TEXT, wrap="word", height=120)
         self.log.pack(fill="both", expand=True, pady=(0, 12))
         self.log.configure(state="disabled")
 
-        # ── כפתור צפייה ──
-        self.watch_btn = ctk.CTkButton(wrap, text="▶  צפה עם כתוביות", height=46,
-                                       font=ctk.CTkFont("Segoe UI", 16, "bold"), corner_radius=12,
-                                       fg_color=SUCCESS, hover_color="#16a34a",
+        self.watch_btn = ctk.CTkButton(main, text="▶  צפה עם כתוביות", height=46,
+                                       font=cfont(16, "bold"), corner_radius=12,
+                                       fg_color=GREEN, hover_color=GREEN_HOVER, text_color="#0c2a22",
                                        command=self.watch, state="disabled")
         self.watch_btn.pack(fill="x")
+
+    # ── רשימת אחרונות ──
+    def _refresh_recent(self):
+        for w in self.recent_box.winfo_children():
+            w.destroy()
+        if not self.recent:
+            ctk.CTkLabel(self.recent_box, text="עדיין אין", font=cfont(12),
+                         text_color=SIDE_MUTED).pack(pady=8)
+            return
+        for it in self.recent[:10]:
+            b = ctk.CTkButton(self.recent_box, text="🎞  " + it["name"][:24], anchor="e",
+                              font=cfont(12), fg_color="transparent", hover_color=SIDEBAR_HOVER,
+                              text_color="#e7e6f5", corner_radius=8, height=34,
+                              command=lambda v=it.get("viewer"): self._open_viewer(v))
+            b.pack(fill="x", pady=2)
+
+    def _add_recent(self, name, viewer):
+        self.recent = [r for r in self.recent if r.get("viewer") != viewer]
+        self.recent.insert(0, {"name": name, "viewer": viewer, "date": time.strftime("%Y-%m-%d")})
+        self.recent = self.recent[:20]
+        save_recent(self.recent)
+        self._refresh_recent()
+
+    def _open_viewer(self, path):
+        if path and os.path.exists(path):
+            webbrowser.open("file:///" + path.replace("\\", "/"))
+        else:
+            messagebox.showinfo("לא נמצא", "קובץ הצפייה לא נמצא (אולי נמחק/הוזז).")
 
     # ── אינטראקציה ──
     def _hover(self, on):
         if not self.video_path:
-            self.drop.configure(border_color=ACCENT if on else CARD_BORDER)
+            self.drop.configure(border_color=PURPLE if on else CARD_BORDER)
+
+    def new_session(self):
+        self.video_path = None
+        self.viewer_path = None
+        self.drop_icon.configure(text="⬇️")
+        self.drop_title.configure(text="גררו לכאן קובץ הרצאה", text_color=TEXT)
+        self.drop_sub.configure(text="או לחצו לבחירת קובץ מהמחשב")
+        self.drop.configure(border_color=CARD_BORDER)
+        self.go_btn.configure(state="disabled")
+        self.watch_btn.configure(state="disabled")
+        self.stage_lbl.configure(text="מוכן להתחיל", text_color=TEXT)
+        self.detail_lbl.configure(text="בחרו קובץ כדי להתחיל")
+        self.prog.configure(mode="determinate"); self.prog.set(0)
+        self.log.configure(state="normal"); self.log.delete("1.0", "end"); self.log.configure(state="disabled")
 
     def on_drop(self, event):
         files = self.root.tk.splitlist(event.data)
@@ -184,15 +288,14 @@ class App:
             return
         self.video_path = path
         self.drop_icon.configure(text="🎞️")
-        self.drop_title.configure(text=os.path.basename(path), text_color="#ffffff")
+        self.drop_title.configure(text=os.path.basename(path), text_color=TEXT)
         self.drop_sub.configure(text="מוכן! לחצו ״צור כתוביות״ (או גררו קובץ אחר)")
-        self.drop.configure(border_color=ACCENT)
+        self.drop.configure(border_color=PURPLE)
         self.go_btn.configure(state="normal")
         self.watch_btn.configure(state="disabled")
-        self.stage_lbl.configure(text="מוכן להתחיל", text_color="#ffffff")
+        self.stage_lbl.configure(text="מוכן להתחיל", text_color=TEXT)
         self.detail_lbl.configure(text="לחצו ״צור כתוביות״")
-        self.prog.configure(mode="determinate")
-        self.prog.set(0)
+        self.prog.configure(mode="determinate"); self.prog.set(0)
 
     def logmsg(self, s):
         self.log.configure(state="normal")
@@ -242,7 +345,7 @@ class App:
                         self.q.put(("progress", (min(0.99, seg.end / dur), elapsed, eta)))
             self.q.put(("stage", ("finalize", "מכין נגן…")))
             self.viewer_path = self.make_viewer(self.video_path, cues)
-            self.q.put(("done", n))
+            self.q.put(("done", (n, os.path.basename(self.video_path), self.viewer_path)))
         except Exception as e:  # noqa: BLE001
             self.q.put(("error", str(e)))
 
@@ -266,19 +369,14 @@ class App:
                     self.logmsg(val)
                 elif kind == "stage":
                     code, text = val
-                    self.stage_lbl.configure(text=text, text_color="#ffffff")
+                    self.stage_lbl.configure(text=text, text_color=TEXT)
                     if code == "load":
-                        self.prog.configure(mode="indeterminate")
-                        self.prog.start()
+                        self.prog.configure(mode="indeterminate"); self.prog.start()
                         self.detail_lbl.configure(text="מתכונן…")
                     elif code == "trans":
-                        self.prog.stop()
-                        self.prog.configure(mode="determinate")
-                        self.prog.set(0)
+                        self.prog.stop(); self.prog.configure(mode="determinate"); self.prog.set(0)
                     elif code == "finalize":
-                        self.prog.stop()
-                        self.prog.configure(mode="determinate")
-                        self.prog.set(0.99)
+                        self.prog.stop(); self.prog.configure(mode="determinate"); self.prog.set(0.99)
                         self.detail_lbl.configure(text="כמעט סיימנו…")
                 elif kind == "progress":
                     frac, elapsed, eta = val
@@ -286,15 +384,17 @@ class App:
                     self.detail_lbl.configure(
                         text=f"{int(frac * 100)}%      ·      נותרו בערך {human(eta)}      ·      עברו {human(elapsed)}")
                 elif kind == "done":
+                    n, name, viewer = val
                     self.prog.set(1.0)
-                    self.stage_lbl.configure(text=f"✓ מוכן! נוצרו {val} כתוביות", text_color=SUCCESS)
+                    self.stage_lbl.configure(text=f"✓ מוכן! נוצרו {n} כתוביות", text_color=GREEN_HOVER)
                     self.detail_lbl.configure(text="לחצו ״צפה עם כתוביות״")
                     self.watch_btn.configure(state="normal")
                     self.go_btn.configure(state="normal")
+                    self._add_recent(name, viewer)
                     return
                 elif kind == "error":
                     self.prog.stop()
-                    self.stage_lbl.configure(text="אירעה שגיאה", text_color="#ef4444")
+                    self.stage_lbl.configure(text="אירעה שגיאה", text_color="#e0455e")
                     self.detail_lbl.configure(text=str(val)[:80])
                     messagebox.showerror("שגיאה", str(val))
                     self.go_btn.configure(state="normal")
@@ -304,8 +404,7 @@ class App:
         self.root.after(150, self.poll)
 
     def watch(self):
-        if self.viewer_path and os.path.exists(self.viewer_path):
-            webbrowser.open("file:///" + self.viewer_path.replace("\\", "/"))
+        self._open_viewer(self.viewer_path)
 
 
 def center(root, w, h):
@@ -317,8 +416,8 @@ def center(root, w, h):
 def main():
     root = Tk()
     App(root)
-    center(root, 660, 720)
-    root.minsize(560, 640)
+    center(root, 940, 700)
+    root.minsize(820, 600)
     root.mainloop()
 
 
