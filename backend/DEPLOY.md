@@ -34,6 +34,27 @@ docker compose logs -f stt     # אמור להראות "model ready" ו-"ready (
 
 ---
 
+## אופציה חינמית: מנהרה (Cloudflare Tunnel) — בלי שרת בתשלום
+
+הדרך המהירה לתת לחברים לבדוק: הרץ את השרת על המחשב שלך, וחשוף אותו לכתובת `wss://` ציבורית דרך מנהרה חינמית. **נבדק ועובד** (לקוח התחבר דרך האינטרנט וקיבל תמלולים).
+
+```powershell
+# 1. התקן cloudflared (פעם אחת)
+winget install --id Cloudflare.cloudflared -e
+
+# 2. הרץ את השרת על localhost:9090
+#    - לבדיקת הצינור (עברית מזויפת):  python mock_server.py
+#    - לעברית אמיתית: הרץ את server.py (דורש Python 3.11/3.12 + pip install -r requirements.txt)
+
+# 3. בטרמינל נפרד — פתח מנהרה:
+cloudflared tunnel --url http://localhost:9090 --no-autoupdate
+#    יודפס:  https://<random>.trycloudflare.com
+```
+
+- ה-endpoint לתוסף = אותה כתובת עם `wss` במקום `https`: **`wss://<random>.trycloudflare.com`**.
+- הגדר אותה ב-options של התוסף (אצלך ואצל החברים), והשאר את שני הטרמינלים פתוחים.
+- **שים לב:** כתובת ה-quick tunnel **זמנית** ומשתנה בכל הרצה. לכתובת קבועה — מנהרה בשם (named tunnel) עם חשבון Cloudflare חינמי + דומיין.
+
 ## GPU (איכות עברית מיטבית, latency נמוך)
 דורש NVIDIA GPU + [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/).
 

@@ -10,10 +10,12 @@ import asyncio
 import json
 import struct
 import math
+import sys
 
 import websockets
 
-URI = "ws://localhost:9090"
+# אפשר להעביר כתובת כפרמטר, למשל wss://xxx.trycloudflare.com
+URI = sys.argv[1] if len(sys.argv) > 1 else "ws://localhost:9090"
 FRAME_SAMPLES = 1600  # ~100ms ב-16kHz (כמו ה-AudioWorklet)
 NUM_FRAMES = 30       # ~3 שניות
 
