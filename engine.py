@@ -175,6 +175,9 @@ def load_settings():
     except Exception:
         data = {}
     data.setdefault("transcription_mode", "local_accurate")
+    data.setdefault("transcription_language", "he")  # "" = auto-detect; "he"/"en"/... = Whisper code
+    data.setdefault("subtitle_size", "md")    # sm/md/lg — native caption size in the player
+    data.setdefault("subtitle_bg", "dark")    # dark/light/none — native caption background
     data.setdefault("library_dir", LIB_DIR)  # base folder where course folders + lectures are stored
     data.setdefault("cloud", {})
     c = data["cloud"]
@@ -374,6 +377,69 @@ def rename_lecture(video, title):
     return save_library(data)
 
 
+def rename_course(old, new):
+    """Rename a course: relabel in the library and rename its folder on disk (best-effort).
+
+    If the folder rename fails (e.g. a file is open), the labels still update so the UI stays
+    consistent; the files just keep their old physical location.
+    """
+    old = (old or "").strip()
+    new = (new or "").strip()
+    data = load_library()
+    if not new or old not in data["courses"] or new in data["courses"]:
+        return data
+
+    src = os.path.join(library_dir(), _safe_folder(old))
+    dst = os.path.join(library_dir(), _safe_folder(new))
+    moved = False
+    if os.path.isdir(src) and not os.path.exists(dst):
+        try:
+            shutil.move(src, dst)
+            moved = True
+        except OSError:
+            pass
+    data["courses"] = [new if c == old else c for c in data["courses"]]
+    for l in data["lectures"]:
+        if l.get("course") == old:
+            l["course"] = new
+        if moved:                                   # repoint paths that lived under the old folder
+            for key in ("video", "srt"):
+                p = l.get(key)
+                if p and os.path.abspath(p).startswith(os.path.abspath(src) + os.sep):
+                    l[key] = os.path.join(dst, os.path.relpath(p, src))
+    return save_library(data)
+
+
+def move_lecture(video, course):
+    """Actually move a lecture's files into <library>/<course>/ and update the library.
+
+    Empty course (or same folder) → relabel only, no file move. Returns the library.
+    """
+    video = os.path.abspath(video)
+    data = load_library()
+    lec = next((l for l in data["lectures"] if os.path.abspath(l.get("video", "")) == video), None)
+    if not lec:
+        return data
+
+    folder = _safe_folder(course)
+    dest_dir = os.path.join(library_dir(), folder) if folder else None
+    same_place = not dest_dir or os.path.abspath(os.path.dirname(video)) == os.path.abspath(dest_dir)
+    if same_place:
+        lec["course"] = course or ""
+        if course and course not in data["courses"]:
+            data["courses"].append(course)
+        return save_library(data)
+
+    srt = lec.get("srt") or (os.path.splitext(video)[0] + ".srt")
+    res = relocate({"video": video, "srt": srt if os.path.exists(srt) else None,
+                    "viewer": viewer_path(video),
+                    "cues": parse_srt(srt) if os.path.exists(srt) else []}, course)
+    lec["video"], lec["srt"], lec["course"] = res["video"], res["srt"], course
+    if course not in data["courses"]:
+        data["courses"].append(course)
+    return save_library(data)
+
+
 def viewer_path(video):
     """Path to the lecture's standalone HTML player (created at transcription time)."""
     folder = os.path.dirname(video)
@@ -525,18 +591,21 @@ def _split_words(words):
     return out
 
 
-def transcribe(video_path, fast=False, on_progress=None, cloud=None, pause_check=None):
+def transcribe(video_path, fast=False, on_progress=None, cloud=None, pause_check=None,
+               cancel_check=None, language="he"):
     """Transcribe a file → SRT + cues. on_progress(dict) is called throughout.
 
     cloud={"endpoint_url":..., "api_key":...} routes to an external server (cloud_backend)
     instead of the local model. The rest of the app always receives the same result structure.
+    language: Whisper language code ("he"/"en"/...); "" or None means auto-detect.
     pause_check(): optional callable invoked each segment; it may block while paused and
     should return the number of seconds it blocked (for ETA accounting).
     """
     if cloud:
         import cloud_backend
         return cloud_backend.transcribe_remote(
-            video_path, cloud.get("endpoint_url", ""), cloud.get("api_key", ""), on_progress)
+            video_path, cloud.get("endpoint_url", ""), cloud.get("api_key", ""), on_progress,
+            cancel_check=cancel_check, language=language)
 
     global _model, _model_name, _device
 
@@ -545,7 +614,9 @@ def transcribe(video_path, fast=False, on_progress=None, cloud=None, pause_check
             kw.setdefault("device", _device)
             on_progress(kw)
 
-    name = MODEL_FAST if fast else MODEL_ACCURATE
+    # MODEL_ACCURATE is Hebrew-specialised; for English or auto-detect use the general model so the
+    # output isn't biased toward Hebrew. Only explicit Hebrew gets the specialised model.
+    name = MODEL_ACCURATE if (language == "he" and not fast) else MODEL_FAST
     if _model is None or _model_name != name:
         emit(stage="extract", percent=0, eta=None, elapsed=0, loading=True)
         _model, _device = _load_model(name)
@@ -554,7 +625,7 @@ def transcribe(video_path, fast=False, on_progress=None, cloud=None, pause_check
 
     emit(stage="transcribe", percent=0, eta=None, elapsed=0)
     segments, info = _model.transcribe(
-        video_path, language="he", vad_filter=True,
+        video_path, language=language or None, vad_filter=True,
         beam_size=1 if fast else 5,
         word_timestamps=True,
         vad_parameters={"min_silence_duration_ms": 500})

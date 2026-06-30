@@ -48,6 +48,13 @@ $("themeBtn").addEventListener("click", () =>
   applyTheme(document.body.classList.contains("dark") ? "light" : "dark"));
 applyTheme(localStorage.getItem("theme") || "light");
 
+// ── subtitle appearance (size + background) — applied to the native <track> captions via CSS ──
+function applySubtitleStyle(size, bg) {
+  document.body.dataset.subSize = size || "md";
+  document.body.dataset.subBg = bg || "dark";
+}
+applySubtitleStyle("md", "dark");   // sensible default until settings load
+
 // ── window buttons (the colored dots) ──
 $("winClose").addEventListener("click", () => window.pywebview.api.win_close());
 $("winMin").addEventListener("click", () => window.pywebview.api.win_minimize());
@@ -63,6 +70,9 @@ function applyPrivNote() {
     note.textContent = "🔒 הכול נשאר אצלכם במחשב";
   }
 }
+$("langSel").addEventListener("change", () => {
+  window.pywebview.api.save_settings({ transcription_language: $("langSel").value }).catch(() => {});
+});
 $("modeSel").addEventListener("change", () => {
   applyPrivNote();
   const mode = $("modeSel").value;
@@ -82,9 +92,20 @@ function openSettingsDrawer() {
     $("settingsEndpoint").value = cloud.endpoint_url || "";
     $("settingsKey").value = cloud.api_key || "";
     $("settingsPrice").value = cloud.price_per_hour || "";
+    $("settingsSubSize").value = (s && s.subtitle_size) || "md";
+    $("settingsSubBg").value = (s && s.subtitle_bg) || "dark";
     renderCost(cloud);
   });
 }
+// subtitle appearance: apply immediately and persist on change
+$("settingsSubSize").addEventListener("change", () => {
+  applySubtitleStyle($("settingsSubSize").value, $("settingsSubBg").value);
+  window.pywebview.api.save_settings({ subtitle_size: $("settingsSubSize").value }).catch(() => {});
+});
+$("settingsSubBg").addEventListener("change", () => {
+  applySubtitleStyle($("settingsSubSize").value, $("settingsSubBg").value);
+  window.pywebview.api.save_settings({ subtitle_bg: $("settingsSubBg").value }).catch(() => {});
+});
 $("settingsLibDirBtn").addEventListener("click", async () => {
   const dir = await window.pywebview.api.pick_folder();
   if (!dir) return;
@@ -94,15 +115,15 @@ $("settingsLibDirBtn").addEventListener("click", async () => {
 });
 function renderCost(cloud) {
   const secs = Number(cloud.total_seconds) || 0;
-  $("costTotal").textContent = fmtCost(cloud.total_cost);
+  $("costTotal").textContent = "≈ " + fmtCost(cloud.total_cost);   // estimate — see below
   const mins = Math.round(secs / 60);
   $("costSub").textContent = secs > 0
     ? `${mins} דקות עיבוד מצטבר על השרת`
     : "טרם בוצע תמלול בשרת";
 }
 function closeSettingsDrawer() { $("settingsDrawer").hidden = true; $("settingsOv").hidden = true; }
-$("cloudSettingsBtn").addEventListener("click", openSettingsDrawer);
-$("homeSettings").addEventListener("click", openSettingsDrawer);
+// settings are reached from the ☰ drawer now (no duplicate home button)
+$("drawerSettingsBtn").addEventListener("click", () => { closeDrawer(); openSettingsDrawer(); });
 $("settingsClose").addEventListener("click", closeSettingsDrawer);
 $("settingsOv").addEventListener("click", closeSettingsDrawer);
 $("settingsSaveBtn").addEventListener("click", () => {
@@ -148,14 +169,21 @@ window.addEventListener("pywebviewready", () => {
       const opt = [...$("modeSel").options].find((o) => o.value === s.transcription_mode);
       if (opt) $("modeSel").value = s.transcription_mode;
     }
+    if (s && s.transcription_language != null) {
+      const opt = [...$("langSel").options].find((o) => o.value === s.transcription_language);
+      if (opt) $("langSel").value = s.transcription_language;
+    }
+    if (s) applySubtitleStyle(s.subtitle_size, s.subtitle_bg);
     applyPrivNote();
   }).catch(() => {});
+
+  refreshHome();   // populate the dashboard immediately on launch (not only after clicking 'home')
 
   // crash recovery: resume any queue left over from a previous run (runs in background)
   Promise.resolve(refreshLibrary()).finally(() => {
     window.pywebview.api.load_queue().then((jobs) => {
       if (!Array.isArray(jobs) || !jobs.length) return;
-      queue = jobs.map((j) => ({ ...j, name: j.sourcePath.split(/[\\/]/).pop(), res: null }));
+      queue = jobs.map((j) => ({ ...j, name: j.name || j.sourcePath.split(/[\\/]/).pop(), res: null }));
       renderQueue();
       if (!processing) processNext();
     }).catch(() => {});
@@ -219,9 +247,10 @@ drop.addEventListener("mouseleave", () => drop.classList.remove("hover"));
 
 // ── queue persistence (atomic JSON in Python; debounced from JS) ──
 function serializeQueue() {
-  // res/name are runtime-only; persist just the schema fields
-  return queue.map(({ id, sourcePath, courseName, status, error, createdAt }) =>
-    ({ id, sourcePath, courseName, status, error: error || null, createdAt }));
+  // res is runtime-only; persist a custom name only if the user set one (else it's derived from the path)
+  return queue.map(({ id, sourcePath, courseName, language, status, error, createdAt, renamed, name }) =>
+    ({ id, sourcePath, courseName, language, status, error: error || null, createdAt,
+       ...(renamed ? { renamed: true, name } : {}) }));
 }
 let _saveTimer = null;
 function saveQueueSoon() {
@@ -234,6 +263,7 @@ function saveQueueSoon() {
 // ── queue ──
 window.enqueueFiles = function (paths) {
   const course = $("courseSel").value || "";  // current course = destination folder for this batch
+  const language = $("langSel").value;         // "" = auto-detect
   for (const p of paths) {
     if (!p || queue.some((q) => q.sourcePath === p)) continue;
     queue.push({
@@ -241,6 +271,7 @@ window.enqueueFiles = function (paths) {
       sourcePath: p,
       name: p.split(/[\\/]/).pop(),
       courseName: course,
+      language,
       status: "queued",
       error: null,
       createdAt: new Date().toISOString(),
@@ -257,6 +288,7 @@ async function processNext() {
   const item = queue.find((q) => q.status === "queued");
   if (!item) {
     processing = false;
+    stopProcTips();
     const doneCount = queue.filter((q) => q.status === "done").length;
     const errCount = queue.filter((q) => q.status === "failed").length;
     if (doneCount > 0) {
@@ -296,14 +328,17 @@ async function processNext() {
   $("fill").style.width = "0"; $("pct").textContent = "0%"; $("eta").textContent = "";
   resetSteps();
   renderQueue();
-  setJobCtrl(!cloudCfg);  // pause/cancel only apply to local transcription (cloud is a single fast call)
-  window.pywebview.api.start(item.sourcePath, fast, item.courseName || "", cloudCfg);
+  startProcTips();               // rotating learning tips while the job runs
+  setJobCtrl(true, !!cloudCfg);  // local: pause+cancel; cloud: cancel only (can't pause a remote job)
+  const lang = item.language == null ? "he" : item.language;   // "" = auto; undefined (old items) → he
+  window.pywebview.api.start(item.sourcePath, fast, item.courseName || "", cloudCfg, lang);
 }
 
-// ── pause / cancel controls for the running local job ──
+// ── pause / cancel controls for the running job ──
 let paused = false;
-function setJobCtrl(show) {
+function setJobCtrl(show, cloud) {
   $("jobCtrl").hidden = !show;
+  $("pauseBtn").hidden = !!cloud;   // pausing only works for the local subprocess
   if (!show) { paused = false; $("pauseBtn").textContent = "⏸ השהה"; }
 }
 $("pauseBtn").addEventListener("click", () => {
@@ -325,6 +360,7 @@ $("cancelBtn").addEventListener("click", () => {
     "שאר ההרצאות בתור ימשיכו כרגיל.");
   if (!ok) return;
   cancelling = true;                       // suppress further progress + show immediate feedback
+  stopSmooth();
   $("jobCtrl").hidden = true;
   $("stageHeading").textContent = "מבטל…";
   $("eta").textContent = "";
@@ -387,6 +423,22 @@ function renderQueue() {
     }
     row.appendChild(icon); row.appendChild(name);
 
+    if (q.status === "queued" || q.status === "running") {
+      // rename the lecture (as saved in the app) — works even while it's transcribing
+      const edit = document.createElement("button");
+      edit.className = "qedit"; edit.textContent = "✏"; edit.title = "שינוי שם ההרצאה";
+      edit.onclick = (e) => {
+        e.stopPropagation();
+        const nn = prompt("שם חדש להרצאה:", q.name);
+        if (!nn || !nn.trim()) return;
+        q.name = nn.trim();
+        q.renamed = true;          // apply this title to the library entry when the job finishes
+        name.textContent = q.name; name.title = q.name;
+        saveQueueSoon();
+      };
+      row.appendChild(edit);
+    }
+
     if (q.status === "queued") {
       // drag to reorder + per-item destination course
       row.draggable = true;
@@ -417,11 +469,24 @@ function renderQueue() {
       row.appendChild(tag);
     }
 
+    if (q.status === "failed" && q.error) {
+      const err = document.createElement("span");
+      err.className = "qerr"; err.textContent = q.error; err.title = q.error;
+      row.appendChild(err);
+    }
     if (q.status === "done") {
       const b = document.createElement("button");
       b.className = "qwatch"; b.textContent = "▶ צפה";
       b.onclick = () => watchItem(queue.indexOf(q));
       row.appendChild(b);
+    }
+    // remove from the list — available for everything except the job currently running (use cancel for that)
+    if (q.status !== "running" && q.status !== "queued") {
+      const del = document.createElement("button");
+      del.className = "qdel"; del.textContent = "✕";
+      del.title = q.status === "done" ? "הסר מהרשימה" : "הסר מהתור";
+      del.onclick = () => { queue = queue.filter((x) => x !== q); renderQueue(); saveQueueSoon(); };
+      row.appendChild(del);
     }
     wrap.appendChild(row);
   });
@@ -478,22 +543,56 @@ window.onProgress = function (p) {
   if (p.loading) {
     $("bar2").classList.add("loading");
     $("pct").textContent = "";
-    $("eta").textContent = "טוען את המודל העברי (בפעם הראשונה מוריד, כמה דקות)…";
+    $("eta").textContent = p.device === "cloud"
+      ? "מכין ומעלה את האודיו לשרת… (בהרצה ראשונה השרת מתעורר — עד דקה)"
+      : "מאתחל את מנוע התמלול… (בהרצה הראשונה בלבד יורד המודל פעם אחת — זה החלק הארוך)";
     return;
   }
   $("bar2").classList.remove("loading");
 
   if (p.stage === "transcribe" || p.stage === "sync") {
-    if (typeof p.percent === "number") {
-      $("fill").style.width = p.percent + "%";
-      $("pct").textContent = p.percent + "%";
-      updateJobPill(p.percent);
-    }
-    if (p.eta != null && p.eta > 0) {
-      $("eta").textContent = "נותרו בערך " + fmtEta(p.eta) + " — אפשר להשאיר את זה רץ ברקע";
+    if (p.device === "cloud" && p.eta != null) {
+      // cloud sends only a handful of real updates (one per chunk); creep the bar smoothly
+      // between them and tick the countdown locally so the wait never looks frozen.
+      $("bar2").classList.add("running");
+      smoothEta = { basePct: typeof p.percent === "number" ? p.percent : 0, eta: p.eta, t0: Date.now() };
+      if (!smoothTimer) smoothTimer = setInterval(tickSmooth, 1000);
+      tickSmooth();
+    } else {
+      if (typeof p.percent === "number") {
+        $("fill").style.width = p.percent + "%";
+        $("pct").textContent = p.percent + "%";
+        updateJobPill(p.percent);
+      }
+      if (p.eta != null && p.eta > 0) {
+        $("eta").textContent = "נותרו בערך " + fmtEta(p.eta) + " — אפשר להשאיר את זה רץ ברקע";
+      }
     }
   }
 };
+
+// smooth, self-anchoring progress for cloud: each real update re-anchors basePct/eta, the
+// 1s ticker interpolates toward 100% so the bar keeps creeping during the long server waits.
+let smoothEta = null, smoothTimer = null;
+function stopSmooth() {
+  if (smoothTimer) { clearInterval(smoothTimer); smoothTimer = null; }
+  smoothEta = null;
+  $("bar2").classList.remove("running");
+}
+function tickSmooth() {
+  if (!smoothEta) return;
+  const { basePct, eta, t0 } = smoothEta;
+  const dt = (Date.now() - t0) / 1000;
+  const frac = eta > 0 ? Math.min(dt / eta, 0.985) : 0.985;
+  const pct = Math.min(99, basePct + (100 - basePct) * frac);
+  $("fill").style.width = pct + "%";
+  $("pct").textContent = Math.round(pct) + "%";
+  updateJobPill(Math.round(pct));
+  const rem = eta > 0 ? eta - dt : 0;
+  $("eta").textContent = rem > 1
+    ? "נותרו בערך " + fmtEta(rem) + " — אפשר להשאיר את זה רץ ברקע"
+    : "עוד רגע מסיים…";
+}
 
 function fmtEta(sec) {
   sec = Math.max(0, Math.round(sec));
@@ -503,8 +602,15 @@ function fmtEta(sec) {
 
 // ── file done → advance queue ──
 window.onDone = function (res) {
+  stopSmooth();
   const cur = queue.find((q) => q.status === "running");
-  if (cur) { cur.status = "done"; cur.res = res; }
+  if (cur) {
+    cur.status = "done"; cur.res = res;
+    // user renamed the lecture during transcription → apply it to the saved library entry
+    if (cur.renamed && res && res.video) {
+      window.pywebview.api.rename_lecture(res.video, cur.name).then(refreshLibrary);
+    }
+  }
   renderQueue();
   saveQueueSoon();
   refreshLibrary();  // lecture registered in library — refresh sidebar
@@ -525,6 +631,7 @@ $("watchDone").addEventListener("click", () => {
 $("newLec").addEventListener("click", () => show("open"));
 
 window.onError = function (msg) {
+  stopSmooth();
   lastError = msg || "";
   _log("UI onError: " + lastError);
   const cur = queue.find((q) => q.status === "running");
@@ -537,6 +644,7 @@ window.onError = function (msg) {
 
 // user cancelled the current job → drop it (no output was written) and continue with the rest
 window.onCancelled = function () {
+  stopSmooth();
   cancelling = false;
   paused = false;
   processing = false;
@@ -558,6 +666,34 @@ window.onCancelled = function () {
 // ── player ──
 const video = $("video");
 const screenEl = document.querySelector(".screen");
+
+// ── player engine toggle ──────────────────────────────────────────────────
+// NATIVE_PLAYER=true uses the browser's built-in, battle-tested video controls (seek/speed/
+// fullscreen) and hides our hand-rolled control bar. Set to false to fall back to the old
+// custom controls. The Hebrew caption line + transcript panel work the same in both modes,
+// since they're driven by the <video> 'timeupdate' event either way.
+const NATIVE_PLAYER = true;
+if (NATIVE_PLAYER) {
+  video.setAttribute("controls", "");
+  document.body.classList.add("native-player");
+}
+
+// Native WebVTT captions: the browser renders these itself, so they stay visible in the native
+// player's own fullscreen (a custom overlay div would not — fullscreen only shows the <video>).
+let _vttUrl = null;
+function vttTime(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  const s = (sec % 60).toFixed(3).padStart(6, "0");
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${s}`;
+}
+function buildVtt(cs) {
+  const body = cs.map((c) => `${vttTime(c.start)} --> ${vttTime(c.end)}\n${c.text}`).join("\n\n");
+  if (_vttUrl) URL.revokeObjectURL(_vttUrl);
+  _vttUrl = URL.createObjectURL(new Blob(["WEBVTT\n\n" + body], { type: "text/vtt" }));
+  $("vtt").src = _vttUrl;
+  if (video.textTracks[0]) video.textTracks[0].mode = "showing";
+}
+
 let cues = [];
 let currentVideo = null;
 let rowEls = [];
@@ -573,6 +709,7 @@ async function watchItem(i) {
   setPlayTitle(currentVideo);
   show("play");
   video.load();
+  buildVtt(cues);
   renderTranscript();
 }
 
@@ -616,6 +753,7 @@ $("saveBtn").addEventListener("click", async () => {
   $("tcStatus").textContent = "שומר…";
   const r = await window.pywebview.api.save_srt(currentVideo, cues);
   $("tcStatus").textContent = r === true ? "✓ הכתוביות נשמרו" : "שגיאה: " + r;
+  if (r === true) buildVtt(cues);   // refresh native captions to reflect the edits
 });
 
 // export
@@ -629,7 +767,10 @@ $("docxBtn").addEventListener("click", () => doExport("docx"));
 
 $("playBtn").addEventListener("click", () => { video.paused ? video.play() : video.pause(); });
 video.addEventListener("play", () => ($("playBtn").textContent = "⏸"));
-video.addEventListener("pause", () => ($("playBtn").textContent = "▶"));
+video.addEventListener("pause", () => {
+  $("playBtn").textContent = "▶";
+  saveResume(currentVideo, video.currentTime, video.duration);   // remember where to resume next time
+});
 
 // skip 10 seconds forward/back
 $("skipBack").addEventListener("click", () => {
@@ -644,8 +785,13 @@ $("speedSel").addEventListener("change", () => {
   video.playbackRate = parseFloat($("speedSel").value);
 });
 
+let _lastResumeSave = 0;
 video.addEventListener("timeupdate", () => {
   const t = video.currentTime, d = video.duration || 0;
+  if (t - _lastResumeSave > 5 || _lastResumeSave - t > 5) {   // persist progress at most every ~5s
+    _lastResumeSave = t;
+    saveResume(currentVideo, t, d);
+  }
   const idx = cues.findIndex((c) => t >= c.start && t <= c.end);
   $("subline").textContent = idx >= 0 ? cues[idx].text : "";
   $("pfill").style.width = (d ? (t / d) * 100 : 0) + "%";
@@ -757,6 +903,18 @@ function renderDrawer() {
       `<span class="course-name">${esc(name || "ללא קורס")}</span>` +
       `<span class="course-count">${lecs.length}</span>`;
     if (name) {
+      const ren = document.createElement("button");
+      ren.className = "course-del"; ren.textContent = "✏"; ren.title = "שינוי שם הקורס";
+      ren.onclick = async (e) => {
+        e.stopPropagation();
+        const nn = prompt("שם חדש לקורס:", name);
+        if (!nn || !nn.trim() || nn.trim() === name) return;
+        await window.pywebview.api.rename_course(name, nn.trim());
+        if (openCourses.has(name)) { openCourses.delete(name); openCourses.add(nn.trim()); }
+        refreshLibrary();
+      };
+      head.appendChild(ren);
+
       const del = document.createElement("button");
       del.className = "course-del"; del.textContent = "🗑"; del.title = "מחיקת קורס";
       del.onclick = async (e) => {
@@ -824,55 +982,121 @@ const LEARNING_TIPS = [
   "אם משהו לא מובן בהרצאה — אל תדלגו עליו בתקווה ש'יתבהר אחר כך'. תחזרו אחורה ותקשיבו שוב לקטע הספציפי.",
   "ייצוא התמליל ל-Word/TXT מאפשר לכם לסמן ולהדגיש טקסט בקלות, ולהשתמש בו כבסיס לסיכום מסודר.",
 ];
-let homeTipIdx = -1;
+// feature tips surface once the user has content — they point at app capabilities, not study habits
+const FEATURE_TIPS = [
+  "אפשר לערוך כל שורת תמליל ישירות בנגן ולשמור — מתקנים טעות תמלול בקליק.",
+  "החיפוש למעלה סורק את כל הכתוביות בכל ההרצאות — מצאו רגע ספציפי בלי לגלול בווידאו.",
+  "ייצוא התמליל ל-Word/TXT הופך אותו לבסיס מצוין לסיכום מסודר.",
+  "ארגנו הרצאות לקורסים מתפריט הצד (☰) כדי למצוא אותן מהר אחר כך.",
+  "אפשר לתמלל כמה הרצאות בבת אחת — הוסיפו אותן לתור ותנו להן לרוץ ברקע.",
+];
+let _lastTip = "";
+function pickFrom(pool) {
+  let t;
+  do { t = pool[Math.floor(Math.random() * pool.length)]; } while (t === _lastTip && pool.length > 1);
+  _lastTip = t;
+  return t;
+}
+// home tip: study tips (learning is the point); empty library → a gentle onboarding nudge instead
 function showRandomTip() {
-  if (LEARNING_TIPS.length <= 1) { homeTipIdx = 0; }
-  else {
-    let i;
-    do { i = Math.floor(Math.random() * LEARNING_TIPS.length); } while (i === homeTipIdx);
-    homeTipIdx = i;
-  }
-  $("tipText").textContent = LEARNING_TIPS[homeTipIdx];
+  $("tipText").textContent = library.lectures.length
+    ? pickFrom(LEARNING_TIPS)
+    : "התחילו בתמלול ההרצאה הראשונה — גררו קובץ או הדביקו קישור למעלה.";
 }
 $("tipNext").addEventListener("click", showRandomTip);
 
-function renderStats() {
+// rotating tips on the processing screen — make the wait feel shorter (like a game's loading screen).
+// here we also surface feature tips (edit/search/export) since the user is mid-flow.
+let _procTipTimer = null;
+function startProcTips() {
+  const pool = LEARNING_TIPS.concat(FEATURE_TIPS);
+  const set = () => { $("procTipText").textContent = pickFrom(pool); };
+  set();
+  $("procTip").hidden = false;
+  clearInterval(_procTipTimer);
+  _procTipTimer = setInterval(set, 15000);
+}
+function stopProcTips() {
+  clearInterval(_procTipTimer); _procTipTimer = null;
+  $("procTip").hidden = true;
+}
+
+// ── resume position (per video, localStorage only — no backend) ──
+function saveResume(video, pos, dur) {
+  if (!video || !isFinite(pos) || pos < 3) return;   // ignore the first few seconds
+  try {
+    localStorage.setItem("resume:" + video, JSON.stringify({ pos, dur: dur || 0 }));
+    localStorage.setItem("lastVideo", video);
+  } catch (e) {}
+}
+function getResume(video) {
+  try { return JSON.parse(localStorage.getItem("resume:" + video) || "null"); } catch (e) { return null; }
+}
+
+// shared grouping used by the sidebar drawer and the home "recent courses" row
+function lecturesByCourse() {
+  const by = {};
+  for (const c of library.courses) by[c] = [];
+  for (const l of library.lectures) (by[l.course || ""] = by[l.course || ""] || []).push(l);
+  return by;
+}
+
+function renderWidgets() {
   const total = library.lectures.length;
+  if (!total) { $("statWidgets").innerHTML = ""; return; }
   const viewed = library.lectures.filter((l) => l.viewed).length;
-  const notViewed = total - viewed;
-  const courses = library.courses.length;
   const items = [
-    { num: total, lbl: "הרצאות שתומללו" },
-    { num: courses, lbl: "קורסים" },
-    { num: viewed, lbl: "הרצאות שנצפו" },
-    { num: notViewed, lbl: "מחכות לצפייה" },
+    { ic: "🎬", num: total, lbl: "הרצאות" },
+    { ic: "👁", num: viewed, lbl: "נצפו" },
+    { ic: "⏳", num: total - viewed, lbl: "ממתינות" },
+    { ic: "📚", num: library.courses.length, lbl: "קורסים" },
   ];
-  $("statsGrid").innerHTML = items.map(
-    (s) => `<div class="stat-box"><div class="stat-num">${s.num}</div><div class="stat-lbl">${esc(s.lbl)}</div></div>`
+  $("statWidgets").innerHTML = items.map((s) =>
+    `<div class="widget"><div class="w-ic">${s.ic}</div>` +
+    `<div class="w-num">${s.num}</div><div class="w-lbl">${esc(s.lbl)}</div></div>`
   ).join("");
 }
 
-function renderHomeActions() {
-  const last = library.lectures[0];
-  const btn = $("homeContinue");
-  if (last) {
-    $("homeContinueLabel").textContent = "המשך: " + last.title;
-    btn.hidden = false;
-    btn.onclick = () => openLecture(last.video);
-  } else {
-    btn.hidden = true;
+function renderResume() {
+  const card = $("resumeCard");
+  let video = "";
+  try { video = localStorage.getItem("lastVideo") || ""; } catch (e) {}
+  const lec = video && library.lectures.find((l) => l.video === video);
+  const r = lec && getResume(video);
+  if (!lec || !r) { card.hidden = true; return; }
+  card.hidden = false;
+  $("resumeTitle").textContent = lec.title;
+  $("resumeFill").style.width = (r.dur ? Math.min(100, (r.pos / r.dur) * 100) : 0) + "%";
+  $("resumeWatch").onclick = () => openLecture(video, r.pos);
+  $("resumeEdit").onclick = () => openLecture(video, r.pos);
+}
+
+function renderHomeCourses() {
+  const wrap = $("homeCoursesList");
+  const by = lecturesByCourse();
+  const named = library.courses.filter((c) => (by[c] || []).length).slice(0, 3);
+  if (!named.length) { wrap.innerHTML = ""; return; }
+  wrap.innerHTML = '<div class="hc-label">קורסים אחרונים</div>';
+  for (const name of named) {
+    const chip = document.createElement("button");
+    chip.className = "hc-chip";
+    chip.innerHTML = `<span class="hc-name">${esc(name)}</span><span class="hc-count">${by[name].length}</span>`;
+    chip.onclick = () => { openCourses.add(name); openDrawer(); renderDrawer(); };
+    wrap.appendChild(chip);
   }
 }
 
 async function refreshHome() {
   await refreshLibrary();
-  renderStats();
-  renderHomeActions();
+  renderWidgets();
+  renderResume();
+  renderHomeCourses();
   showRandomTip();
 }
 
-$("homeNewLec").addEventListener("click", () => show("open"));
-$("homeCourses").addEventListener("click", openDrawer);
+// hero: both routes lead to the upload screen (where course + language are chosen); link focuses the URL box
+$("heroFile").addEventListener("click", () => show("open"));
+$("heroLink").addEventListener("click", () => { show("open"); setTimeout(() => $("urlIn").focus(), 50); });
 
 // ── floating action menu (rename / move to course / open in browser / remove) ──
 // used both in sidebar lecture rows and the ⋯ button in the player.
@@ -902,7 +1126,13 @@ function showActionMenu(anchorEl, video, course, title) {
     library.courses.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
   sel.value = course || "";
   sel.onchange = async () => {
-    await window.pywebview.api.set_lecture_course(video, sel.value);
+    menu.remove();
+    try {
+      await window.pywebview.api.set_lecture_course(video, sel.value);
+    } catch (err) {
+      // most likely the file is locked because it's open in the player right now
+      alert("לא ניתן להעביר את ההרצאה כרגע. אם היא פתוחה בנגן — חזרו אחורה ונסו שוב.");
+    }
     refreshLibrary();
   };
   moveRow.innerHTML = "<span>📁 קורס:</span>";
@@ -956,6 +1186,7 @@ async function openLecture(path, seekTo) {
   closeDrawer();
   show("play");
   video.load();
+  buildVtt(cues);
   renderTranscript();
   if (seekTo != null) {
     video.addEventListener("loadedmetadata", () => { video.currentTime = seekTo; video.play(); }, { once: true });
@@ -1030,6 +1261,7 @@ document.addEventListener("keydown", (e) => {
   if (currentView !== "play") return;
   const ae = document.activeElement;
   if (ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.isContentEditable)) return;
+  if (NATIVE_PLAYER && ae === video) return;   // let the browser's own controls handle keys
   if (e.key === " ") { e.preventDefault(); video.paused ? video.play() : video.pause(); }
   else if (e.key === "ArrowLeft") { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); }
   else if (e.key === "ArrowRight") { e.preventDefault(); video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 10); }

@@ -25,7 +25,7 @@
     </div>
 
     <div class="body">
-      <!-- home screen: stats + tip + quick actions -->
+      <!-- home screen: hero · resume · stats · courses · tip -->
       <section class="view" id="view-home">
         <div class="kicker">ברוכים הבאים</div>
 
@@ -34,29 +34,43 @@
         </div>
         <div class="search-results" id="searchResults" hidden></div>
 
-        <div class="stats-grid" id="statsGrid"></div>
-
-        <div class="tipcard" id="tipCard">
-          <div class="tip-head">
-            <span class="tip-label">💡 טיפ ללמידה</span>
-            <button class="tip-next" id="tipNext" title="טיפ נוסף">↻</button>
+        <!-- primary action: start a new transcription -->
+        <div class="hero">
+          <div class="hero-title">＋ תמלול חדש</div>
+          <div class="hero-sub">העלו הרצאה מוקלטת וקבלו כתוביות עברית מסונכרנות</div>
+          <div class="hero-actions">
+            <button class="hero-btn" id="heroFile">📁 בחירת קובץ</button>
+            <button class="hero-btn hero-btn-alt" id="heroLink">🔗 הדבקת קישור</button>
           </div>
-          <div class="tip-text" id="tipText"></div>
         </div>
 
-        <div class="home-actions">
-          <button class="homeaction" id="homeNewLec">
-            <span class="ha-ic">＋</span><span>הרצאה חדשה</span>
-          </button>
-          <button class="homeaction" id="homeCourses">
-            <span class="ha-ic">☰</span><span>הקורסים שלי</span>
-          </button>
-          <button class="homeaction" id="homeContinue" hidden>
-            <span class="ha-ic">▶</span><span id="homeContinueLabel">המשך לצפות</span>
-          </button>
-          <button class="homeaction" id="homeSettings">
-            <span class="ha-ic">⚙</span><span>הגדרות שרת</span>
-          </button>
+        <!-- continue where you left off -->
+        <div class="resumecard" id="resumeCard" hidden>
+          <div class="resume-main">
+            <div class="resume-label">▶ המשך מאיפה שעצרת</div>
+            <div class="resume-title" id="resumeTitle"></div>
+            <div class="resume-bar"><div class="resume-fill" id="resumeFill"></div></div>
+          </div>
+          <div class="resume-actions">
+            <button class="resume-btn" id="resumeWatch">המשך צפייה</button>
+            <button class="resume-btn resume-btn-alt" id="resumeEdit">✎ ערוך כתוביות</button>
+          </div>
+        </div>
+
+        <!-- stats widgets -->
+        <div class="widgets" id="statWidgets"></div>
+
+        <!-- recent courses -->
+        <div class="homecourses" id="homeCoursesList"></div>
+
+        <!-- learning tip (present, but not the centre of the page) -->
+        <div class="tipline" id="tipCard">
+          <span class="tip-ic">💡</span>
+          <div class="tip-body">
+            <span class="tip-kicker">טיפ ללמידה</span>
+            <span class="tip-text" id="tipText"></span>
+          </div>
+          <button class="tip-next" id="tipNext" title="טיפ נוסף">↻</button>
         </div>
       </section>
 
@@ -70,12 +84,6 @@
           <div class="ordiv">או</div>
           <button class="btn" id="pickBtn">בחרו קובץ מהמחשב</button>
         </div>
-        <div class="urlrow">
-          <input class="urlin" id="urlIn" type="text"
-                 placeholder="או הדביקו קישור להרצאה (YouTube / Moodle)…" />
-          <button class="urlbtn" id="urlBtn">⬇ הורד</button>
-        </div>
-        <div class="urlhint">ל-Moodle: התחברו קודם בכרום, ואז הדביקו את הקישור.</div>
 
         <div class="courserow">
           <span class="courselbl">קורס:</span>
@@ -90,9 +98,24 @@
             <option value="cloud">☁ שרת GPU (ענן) — מהיר מאוד</option>
           </select>
         </div>
+
+        <div class="moderow">
+          <span class="modelbl">שפת ההרצאה:</span>
+          <select class="coursesel" id="langSel">
+            <option value="he">עברית (ברירת מחדל)</option>
+            <option value="en">אנגלית</option>
+            <option value="">זיהוי אוטומטי</option>
+          </select>
+        </div>
+
+        <div class="urlrow">
+          <input class="urlin" id="urlIn" type="text"
+                 placeholder="או הדביקו קישור להרצאה (YouTube / Moodle)…" />
+          <button class="urlbtn" id="urlBtn">⬇ הורד</button>
+        </div>
+        <div class="urlhint">ל-Moodle: התחברו קודם בכרום, ואז הדביקו את הקישור.</div>
         <div class="footrow">
           <div class="priv" id="privNote">🔒 הכול נשאר אצלכם במחשב</div>
-          <button class="settingsLink" id="cloudSettingsBtn">⚙ הגדרות שרת</button>
         </div>
       </section>
 
@@ -102,7 +125,7 @@
         <div class="filechip"><span class="fcic">🎞</span><span id="procName"></span></div>
         <div class="stage" id="stageHeading">מתמלל את ההרצאה לעברית…</div>
         <div class="prog">
-          <div class="bar2" id="bar2"><div class="fill" id="fill"></div></div>
+          <div class="bar2" id="bar2"><div class="fill" id="fill"><div class="speedlines"></div></div></div>
           <div class="pct" id="pct">0%</div>
         </div>
         <div class="eta" id="eta"></div>
@@ -117,6 +140,10 @@
         </div>
         <button class="watchdone" id="watchDone" hidden>▶ הפעל את הכתוביות</button>
         <div class="queue" id="queue"></div>
+        <div class="tipline proctip" id="procTip" hidden>
+          <span class="tip-ic">💡</span>
+          <span class="tip-text" id="procTipText"></span>
+        </div>
         <button class="newlec" id="newLec">＋ הרצאה חדשה</button>
       </section>
 
@@ -128,7 +155,7 @@
           <button class="kebab" id="playKebab" title="פעולות">⋯</button>
         </div>
         <div class="screen">
-          <video id="video" preload="metadata"></video>
+          <video id="video" preload="metadata"><track id="vtt" kind="subtitles" srclang="he" label="עברית" default></video>
           <div class="cc">CC עברית</div>
           <button class="exitfs" id="exitFs" title="יציאה ממסך מלא" hidden>✕ יציאה ממסך מלא</button>
           <div class="subline" id="subline"></div>
@@ -178,6 +205,7 @@
       <button class="newcourse-btn" id="newCourseBtn">+ קורס חדש</button>
     </div>
     <div class="courses" id="coursesList"></div>
+    <button class="drawer-settings" id="drawerSettingsBtn">⚙ הגדרות</button>
   </aside>
 
   <!-- sidebar: personal cloud server settings -->
@@ -195,6 +223,24 @@
         <input class="newcourse-in" id="settingsLibDir" readonly placeholder="טוען…" />
         <button class="newcourse-btn folder-pick" id="settingsLibDirBtn">📁 בחירה</button>
       </div>
+    </div>
+
+    <div class="settings-section">🅰 כתוביות בנגן</div>
+    <div class="settings-field">
+      <label class="settings-lbl" for="settingsSubSize">גודל הכתוביות</label>
+      <select class="newcourse-in" id="settingsSubSize">
+        <option value="sm">קטן</option>
+        <option value="md">בינוני</option>
+        <option value="lg">גדול</option>
+      </select>
+    </div>
+    <div class="settings-field">
+      <label class="settings-lbl" for="settingsSubBg">רקע הכתוביות</label>
+      <select class="newcourse-in" id="settingsSubBg">
+        <option value="dark">כהה (לבן על שחור)</option>
+        <option value="light">בהיר (כהה על קרם)</option>
+        <option value="none">ללא רקע (עם צל)</option>
+      </select>
     </div>
 
     <div class="settings-section">☁ שרת ענן <span class="settings-opt">(אופציונלי)</span></div>
@@ -219,8 +265,9 @@
 
     <div class="settings-section">💰 עלות שימוש בשרת</div>
     <div class="settings-cost" id="settingsCost">
-      <div class="cost-line">עלות מצטברת: <strong id="costTotal">$0.00</strong></div>
+      <div class="cost-line">עלות מוערכת: <strong id="costTotal">$0.00</strong></div>
       <div class="cost-sub" id="costSub"></div>
+      <div class="cost-note">הערכה בלבד — RunPod מחייב גם על זמני התנעה ועיגול, כך שייתכן הפרש קל מהחשבון בפועל.</div>
       <button class="cost-reset" id="costReset">איפוס מונה</button>
     </div>
   </aside>

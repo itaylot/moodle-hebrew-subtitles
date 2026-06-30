@@ -1,7 +1,9 @@
 FROM runpod/base:0.6.2-cuda12.1.0
 
+# use `python3 -m pip` so pip installs into the SAME interpreter that runs handler.py
+# (runpod/base ships multiple pythons; a bare `pip` can install where python3 won't find it)
 COPY requirements.txt /requirements.txt
-RUN pip install --no-cache-dir -r /requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /requirements.txt
 
 # bake the model into the image at build time — avoids a multi-GB download on every cold start
 RUN python3 -c "from faster_whisper import WhisperModel; WhisperModel('ivrit-ai/whisper-large-v3-turbo-ct2', device='cpu', compute_type='int8')"

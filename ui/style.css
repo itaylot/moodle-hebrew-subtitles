@@ -152,43 +152,89 @@ body {
 .view[hidden] { display: none; }
 
 /* ── home screen ── */
-.stats-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  margin-bottom: 18px;
+/* hero: the primary "new transcription" call to action */
+.hero {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+  padding: 18px 18px 16px; margin-bottom: 14px;
 }
-.stat-box {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
-  padding: 14px 16px; text-align: center;
+.hero-title { font-family: "Frank Ruhl Libre", serif; font-size: 22px; font-weight: 700; color: var(--accent); }
+.hero-sub { font-size: 12.5px; color: var(--muted); margin: 4px 0 14px; line-height: 1.5; }
+.hero-actions { display: flex; gap: 10px; }
+.hero-btn {
+  flex: 1; padding: 12px 14px; border-radius: 12px; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  background: var(--accent); color: #fff; border: 1px solid var(--accent);
 }
-.stat-num { font-family: "Frank Ruhl Libre", serif; font-size: 26px; font-weight: 700; color: var(--accent); }
-.stat-lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.hero-btn:hover { filter: brightness(1.05); }
+.hero-btn-alt { background: var(--card); color: var(--text); border-color: var(--line); }
+.hero-btn-alt:hover { border-color: var(--accent); filter: none; }
 
-.tipcard {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
-  padding: 14px 16px; margin-bottom: 18px;
+/* resume: continue where you left off */
+.resumecard {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  padding: 13px 16px; margin-bottom: 14px;
 }
-.tip-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.tip-label { font-size: 12px; font-weight: 600; color: var(--c2); }
+.resumecard[hidden] { display: none; }
+.resume-main { flex: 1; min-width: 160px; }
+.resume-label { font-size: 11px; font-weight: 600; color: var(--c2); margin-bottom: 4px; }
+.resume-title { font-size: 14px; font-weight: 600; margin-bottom: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume-bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.resume-fill { height: 100%; background: var(--accent); border-radius: 3px; width: 0; }
+.resume-actions { display: flex; gap: 8px; }
+.resume-btn {
+  padding: 9px 13px; border-radius: 10px; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  background: var(--accent); color: #fff; border: 1px solid var(--accent);
+}
+.resume-btn:hover { filter: brightness(1.05); }
+.resume-btn-alt { background: transparent; color: var(--text); border-color: var(--line); }
+.resume-btn-alt:hover { border-color: var(--accent); filter: none; }
+
+/* stats widgets: a small dashboard row of cards */
+.widgets {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;
+}
+.widgets:empty { display: none; }
+.widget {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 13px 8px; text-align: center;
+}
+.w-ic { font-size: 17px; line-height: 1; margin-bottom: 6px; }
+.w-num { font-family: "Frank Ruhl Libre", serif; font-size: 24px; font-weight: 700; color: var(--accent); }
+.w-lbl { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* recent courses row */
+.homecourses { margin-bottom: 14px; }
+.homecourses:empty { display: none; }
+.hc-label { font-size: 11px; font-weight: 600; color: var(--c2); margin-bottom: 8px; }
+.hc-chip {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0 0 8px 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 8px 12px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text);
+}
+.hc-chip:hover { border-color: var(--accent); }
+.hc-count {
+  min-width: 20px; height: 20px; border-radius: 6px; padding: 0 5px;
+  background: var(--panel); color: var(--accent); font-size: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* learning tip — compact, lives at the bottom of the home screen (not the centre) */
+.tipline {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 11px 14px; margin-bottom: 18px;
+}
+.tip-ic { flex: none; font-size: 15px; line-height: 1.4; }
+.tip-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.tip-kicker { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; color: var(--c2); }
+.tip-text { font-size: 12.5px; line-height: 1.45; color: var(--text); }
 .tip-next {
-  background: none; border: none; cursor: pointer; color: var(--muted); font-size: 15px; line-height: 1;
+  flex: none; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 15px; line-height: 1;
 }
 .tip-next:hover { color: var(--accent); }
-.tip-text { font-size: 13.5px; line-height: 1.5; }
-
-.home-actions { display: flex; flex-direction: column; gap: 10px; }
-.homeaction {
-  display: flex; align-items: center; gap: 11px;
-  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-  padding: 13px 16px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text);
-  cursor: pointer; text-align: right;
-}
-.homeaction:hover { border-color: var(--accent); }
-.homeaction[hidden] { display: none; }
-.ha-ic {
-  width: 30px; height: 30px; border-radius: 9px; flex: none;
-  background: var(--panel); display: flex; align-items: center; justify-content: center;
-  font-size: 15px; color: var(--accent);
-}
 
 /* ── global search (home screen) ── */
 .search-row { margin-bottom: 14px; }
@@ -267,11 +313,6 @@ body {
 }
 .sw.on .knob { right: 17px; }
 .priv { font-size: 12px; color: var(--c2); }
-.settingsLink {
-  background: none; border: none; color: var(--muted); font-size: 12px;
-  font-family: inherit; cursor: pointer; padding: 0;
-}
-.settingsLink:hover { color: var(--text); }
 
 /* ── transcription mode selector ── */
 .moderow { display: flex; align-items: center; gap: 9px; margin-top: 22px; }
@@ -298,6 +339,7 @@ body {
 .cost-line { font-size: 14px; }
 .cost-line strong { color: var(--c2); }
 .cost-sub { font-size: 12px; color: var(--muted); }
+.cost-note { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; opacity: 0.85; }
 .cost-reset {
   align-self: flex-start; margin-top: 6px; background: none; border: 1px solid var(--line);
   color: var(--muted); border-radius: 999px; padding: 5px 12px; font-family: inherit;
@@ -330,6 +372,13 @@ body {
   padding: 18px 18px 22px;
 }
 .drawer[hidden] { display: none; }
+.drawer-settings {
+  margin-top: auto; flex: none;          /* pinned to the bottom of the drawer */
+  background: none; border: 1px solid var(--line); border-radius: 10px;
+  color: var(--text); font-family: inherit; font-size: 15px; font-weight: 600;
+  padding: 11px; cursor: pointer; text-align: center;
+}
+.drawer-settings:hover { background: var(--panel); }
 .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .drawer-title { font-family: "Frank Ruhl Libre", serif; font-size: 19px; font-weight: 700; }
 .drawer-x {
@@ -433,7 +482,17 @@ body {
 }
 .prog { display: flex; align-items: center; gap: 13px; margin-top: 16px; }
 .bar2 { flex: 1; height: 10px; border-radius: 6px; background: var(--panel); overflow: hidden; }
-.fill { height: 100%; background: var(--accent); border-radius: 6px; width: 0; transition: width 0.3s ease; }
+.fill { height: 100%; background: var(--accent); border-radius: 6px; width: 0; transition: width 0.3s ease; position: relative; overflow: hidden; }
+/* moving speed lines over the filled part — ambient "it's running" motion (RTL: drift leftward) */
+.speedlines {
+  position: absolute; inset: 0; opacity: 0;
+  background-image: repeating-linear-gradient(115deg,
+    transparent 0 9px, rgba(255, 255, 255, 0.30) 9px 12px);
+  background-size: 28px 100%;
+}
+.bar2.running .speedlines { opacity: 1; animation: speed 0.55s linear infinite; }
+@keyframes speed { from { background-position: 0 0; } to { background-position: -28px 0; } }
+@media (prefers-reduced-motion: reduce) { .bar2.running .speedlines { animation: none; } }
 .bar2.loading .fill {
   width: 40% !important;
   animation: indet 1.2s ease-in-out infinite alternate;
@@ -512,6 +571,10 @@ body {
 .qitem.done .qicon { color: var(--c2); }
 .qitem.failed .qicon { color: #c0533e; }
 .qname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qerr {
+  flex: none; font-size: 11px; color: #c0533e; max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .qwatch {
   flex: none; background: var(--c2); color: #fff; border: none;
   border-radius: 999px; padding: 5px 13px; font-size: 12px; font-weight: 600;
@@ -536,6 +599,11 @@ body {
   font-size: 13px; cursor: pointer; padding: 2px 5px; line-height: 1;
 }
 .qdel:hover { color: #c0533e; }
+.qedit {
+  flex: none; background: none; border: none; color: var(--muted);
+  font-size: 12px; cursor: pointer; padding: 2px 5px; line-height: 1;
+}
+.qedit:hover { color: var(--accent); }
 
 /* ── screen 3: player ── */
 .screen {
@@ -559,6 +627,19 @@ body {
   text-align: center; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 .subline:empty { display: none; }
+
+/* native player: hide our custom control bar AND our custom caption div — the browser renders
+   captions from the <track> element itself, which stays visible in the native fullscreen too. */
+.native-player .ctrls { display: none; }
+.native-player .subline { display: none; }
+/* native caption (::cue) appearance — controlled from Settings via body data-attributes */
+video::cue { line-height: 1.5; font-size: 1em; background: rgba(0, 0, 0, 0.75); color: #fff; }
+body[data-sub-size="sm"] video::cue { font-size: 0.8em; }
+body[data-sub-size="md"] video::cue { font-size: 1em; }
+body[data-sub-size="lg"] video::cue { font-size: 1.25em; }
+body[data-sub-bg="dark"]  video::cue { background: rgba(0, 0, 0, 0.75); color: #fff; }
+body[data-sub-bg="light"] video::cue { background: rgba(255, 248, 236, 0.94); color: #3a322b; }
+body[data-sub-bg="none"]  video::cue { background: transparent; color: #fff; text-shadow: 0 1px 4px #000, 0 0 3px #000; }
 
 /* playback controls — part of .screen so they stay visible in fullscreen */
 .ctrls {

@@ -145,11 +145,13 @@ class Api:
             self._js("window.onError", "הורדה נכשלה: " + str(e))
 
     # start transcription (non-blocking). Local runs in a killable subprocess; cloud in a thread.
-    def start(self, path, fast, course="", cloud_cfg=None):
+    def start(self, path, fast, course="", cloud_cfg=None, language="he"):
         if cloud_cfg:
-            threading.Thread(target=self._run_cloud, args=(path, course or "", cloud_cfg), daemon=True).start()
+            threading.Thread(target=self._run_cloud, args=(path, course or "", cloud_cfg, language),
+                             daemon=True).start()
         else:
-            threading.Thread(target=self._run_local, args=(path, bool(fast), course or ""), daemon=True).start()
+            threading.Thread(target=self._run_local, args=(path, bool(fast), course or "", language),
+                             daemon=True).start()
 
     # pause / resume the running local job (cooperative — takes effect at the next segment)
     def pause(self):
@@ -194,7 +196,7 @@ class Api:
             "srt": res["srt"], "count": res["count"],
         })
 
-    def _run_local(self, path, fast, course):
+    def _run_local(self, path, fast, course, language="he"):
         self._cancelled = False
         self._proc = None
         try:
@@ -202,7 +204,7 @@ class Api:
             # ponytail: fresh process per job → model reloads each lecture; persistent worker if that latency bites
             flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
             proc = subprocess.Popen(
-                [sys.executable, WORKER, path, "1" if fast else "0"],
+                [sys.executable, WORKER, path, "1" if fast else "0", language],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=_crash_fh,
                 cwd=HERE, text=True, encoding="utf-8", bufsize=1, creationflags=flags)
             self._proc = proc
@@ -244,18 +246,22 @@ class Api:
         finally:
             self._proc = None
 
-    def _run_cloud(self, path, course, cloud_cfg):
+    def _run_cloud(self, path, course, cloud_cfg, language="he"):
         self._cancelled = False
         try:
             _log("TRANSCRIBE START (cloud): " + str(path))
-            res = engine.transcribe(path, fast=False, cloud=cloud_cfg,
-                                     on_progress=lambda p: self._js("window.onProgress", p))
+            res = engine.transcribe(path, fast=False, cloud=cloud_cfg, language=language,
+                                     on_progress=lambda p: self._js("window.onProgress", p),
+                                     cancel_check=lambda: self._cancelled)
             if res.get("seconds"):  # accumulate cost by processing time reported by server
                 engine.add_cloud_usage(res["seconds"])
             self._finish(res, course)
         except Exception as e:  # noqa: BLE001
-            _log("TRANSCRIBE ERR: " + traceback.format_exc())
-            self._js("window.onError", str(e))
+            if self._cancelled:               # user cancelled mid-job — not an error
+                self._js("window.onCancelled", None)
+            else:
+                _log("TRANSCRIBE ERR: " + traceback.format_exc())
+                self._js("window.onError", str(e))
 
     # log JS errors to crash.log for diagnostics
     def log(self, msg):
@@ -301,8 +307,11 @@ class Api:
     def remove_course(self, name):
         return engine.remove_course(name)
 
+    def rename_course(self, old, new):
+        return engine.rename_course(old, new)
+
     def set_lecture_course(self, video, course):
-        return engine.set_lecture_course(video, course)
+        return engine.move_lecture(video, course)   # actually relocates the files, not just the label
 
     def remove_lecture(self, video):
         return engine.remove_lecture(video)

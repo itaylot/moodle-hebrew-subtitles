@@ -56,9 +56,10 @@ def _pause_check():
 def main():
     video = sys.argv[1]
     fast = len(sys.argv) > 2 and sys.argv[2] == "1"
+    language = sys.argv[3] if len(sys.argv) > 3 else "he"   # "" = auto-detect
     threading.Thread(target=_stdin_reader, daemon=True).start()
     try:
-        res = engine.transcribe(video, fast=fast,
+        res = engine.transcribe(video, fast=fast, language=language,
                                 on_progress=lambda p: _emit("P", p),
                                 pause_check=_pause_check)
         _emit("D", res)

@@ -29,7 +29,7 @@ def handler(job):
     if not audio_b64:
         return {"ok": False, "error": "audio_b64 חסר בקלט."}
 
-    language = inp.get("language", "he")
+    language = inp.get("language") or None   # "" / missing → None → Whisper auto-detects the language
     beam_size = int(inp.get("beam_size", 5))
 
     fd, audio_path = tempfile.mkstemp(suffix=".ogg")
