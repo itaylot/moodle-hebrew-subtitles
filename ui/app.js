@@ -16,7 +16,7 @@ let lastError = "";
 // ── screen switching ──
 let currentView = "home";
 function show(view) {
-  for (const id of ["view-home", "view-open", "view-proc", "view-play"]) {
+  for (const id of ["view-home", "view-open", "view-proc", "view-play", "view-guide"]) {
     $(id).hidden = id !== "view-" + view;
   }
   currentView = view;
@@ -38,6 +38,8 @@ function updateJobPill(pct) {
 }
 $("jobPill").addEventListener("click", () => show("proc"));
 $("homeBtn").addEventListener("click", () => show("home"));
+$("helpBtn").addEventListener("click", () => show("guide"));
+$("guideBack").addEventListener("click", () => show("home"));
 
 // ── light / dark theme ──
 function applyTheme(t) {
@@ -997,11 +999,16 @@ function pickFrom(pool) {
   _lastTip = t;
   return t;
 }
-// home tip: study tips (learning is the point); empty library → a gentle onboarding nudge instead
+// home tip: alternates between study tips and app-usage tips, with a matching label
 function showRandomTip() {
-  $("tipText").textContent = library.lectures.length
-    ? pickFrom(LEARNING_TIPS)
-    : "התחילו בתמלול ההרצאה הראשונה — גררו קובץ או הדביקו קישור למעלה.";
+  if (!library.lectures.length) {
+    $("tipKicker").textContent = "טיפ";
+    $("tipText").textContent = "התחילו בתמלול ההרצאה הראשונה — גררו קובץ או הדביקו קישור למעלה.";
+    return;
+  }
+  const feature = Math.random() < 0.5;
+  $("tipKicker").textContent = feature ? "טיפ שימוש" : "טיפ ללמידה";
+  $("tipText").textContent = pickFrom(feature ? FEATURE_TIPS : LEARNING_TIPS);
 }
 $("tipNext").addEventListener("click", showRandomTip);
 
@@ -1172,6 +1179,56 @@ function showActionMenu(anchorEl, video, course, title) {
   };
   document.addEventListener("click", closeOnOutside, true);
 }
+
+// subtitle appearance popover in the player — quicker to reach than the settings drawer, and the
+// most natural place to adjust captions (you're looking right at them). Stays in sync with settings.
+function showSubtitleMenu(anchorEl) {
+  document.querySelectorAll(".actionmenu").forEach((m) => m.remove());
+  const menu = document.createElement("div");
+  menu.className = "actionmenu submenu";
+  const cur = { size: document.body.dataset.subSize || "md", bg: document.body.dataset.subBg || "dark" };
+  const groups = [
+    { key: "size", label: "גודל", save: "subtitle_size", opts: [["sm", "קטן"], ["md", "בינוני"], ["lg", "גדול"]] },
+    { key: "bg", label: "רקע", save: "subtitle_bg", opts: [["dark", "כהה"], ["light", "בהיר"], ["none", "ללא"]] },
+  ];
+  for (const g of groups) {
+    const row = document.createElement("div");
+    row.className = "sm-row";
+    row.innerHTML = `<span class="sm-lbl">${g.label}</span>`;
+    const opts = document.createElement("div");
+    opts.className = "sm-opts";
+    for (const [val, txt] of g.opts) {
+      const b = document.createElement("button");
+      b.className = "sm-opt" + (cur[g.key] === val ? " on" : "");
+      b.textContent = txt;
+      b.onclick = () => {
+        cur[g.key] = val;
+        applySubtitleStyle(cur.size, cur.bg);
+        window.pywebview.api.save_settings({ [g.save]: val }).catch(() => {});
+        $(g.key === "size" ? "settingsSubSize" : "settingsSubBg").value = val;   // keep settings drawer in sync
+        opts.querySelectorAll(".sm-opt").forEach((x) => x.classList.remove("on"));
+        b.classList.add("on");
+      };
+      opts.appendChild(b);
+    }
+    row.appendChild(opts);
+    menu.appendChild(row);
+  }
+  document.body.appendChild(menu);
+  const r = anchorEl.getBoundingClientRect();
+  menu.style.top = r.bottom + 4 + "px";
+  let left = r.right - menu.offsetWidth;
+  left = Math.max(8, Math.min(left, window.innerWidth - menu.offsetWidth - 8));
+  menu.style.left = left + "px";
+  const closeOnOutside = (e) => {
+    if (!menu.contains(e.target) && e.target !== anchorEl) {
+      menu.remove();
+      document.removeEventListener("click", closeOnOutside, true);
+    }
+  };
+  document.addEventListener("click", closeOnOutside, true);
+}
+$("subBtn").addEventListener("click", (e) => { e.stopPropagation(); showSubtitleMenu($("subBtn")); });
 
 // open a saved lecture in the player (reads SRT from disk). seekTo (seconds) is optional.
 async function openLecture(path, seekTo) {

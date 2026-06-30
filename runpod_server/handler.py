@@ -1,12 +1,14 @@
-"""handler.py — RunPod Serverless handler: transcribes Hebrew audio with faster-whisper.
+"""handler.py — RunPod Serverless handler: transcribes audio with faster-whisper.
 
 Input  (job["input"]):  {"audio_b64": "<base64 Opus/Ogg audio>", "language": "he", "beam_size": 5}
 Output:                 {"ok": true, "segments": [{"start","end","text"}, ...]}
                       or {"ok": false, "error": "..."}
 RunPod wraps this in {"id", "status", "output", "executionTime", ...} automatically.
 
-The model loads once per worker (module scope) and is reused across jobs — only the first
-request on a cold worker pays the load cost.
+Two models: a Hebrew-specialised one for language="he", and a general multilingual one for
+English / auto-detect. Each loads lazily on first use and is then reused across jobs on the same
+worker — only the first request that needs a given model pays its load cost. Both are baked into
+the image (see Dockerfile) so that cost is just a local load, not a multi-GB download.
 """
 
 import os
@@ -16,11 +18,21 @@ import tempfile
 import runpod
 from faster_whisper import WhisperModel
 
-MODEL_NAME = "ivrit-ai/whisper-large-v3-turbo-ct2"
+HEBREW_MODEL = "ivrit-ai/whisper-large-v3-turbo-ct2"   # specialised — best for Hebrew
+GENERAL_MODEL = "large-v3"                              # multilingual — for English / auto-detect
 
-print("Loading model:", MODEL_NAME, flush=True)
-model = WhisperModel(MODEL_NAME, device="cuda", compute_type="float16")
-print("Model loaded.", flush=True)
+_models = {}
+
+
+def get_model(name):
+    if name not in _models:
+        print("Loading model:", name, flush=True)
+        _models[name] = WhisperModel(name, device="cuda", compute_type="float16")
+        print("Model loaded:", name, flush=True)
+    return _models[name]
+
+
+get_model(HEBREW_MODEL)   # warm the most common model at startup
 
 
 def handler(job):
@@ -31,6 +43,8 @@ def handler(job):
 
     language = inp.get("language") or None   # "" / missing → None → Whisper auto-detects the language
     beam_size = int(inp.get("beam_size", 5))
+    # Hebrew → specialised model; English or auto-detect → general multilingual model
+    model = get_model(HEBREW_MODEL if language == "he" else GENERAL_MODEL)
 
     fd, audio_path = tempfile.mkstemp(suffix=".ogg")
     try:

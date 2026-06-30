@@ -16,6 +16,7 @@
       <div class="appname">Subtitle Sidekick</div>
       <button class="jobpill" id="jobPill" hidden>⏳ <span id="jobPct">0%</span></button>
       <div class="barsp"></div>
+      <button class="themebtn" id="helpBtn" title="מדריך שימוש">?</button>
       <button class="themebtn" id="themeBtn" title="מצב בהיר/כהה">◐</button>
       <div class="barx">
         <span class="d1" id="winClose" title="סגירה"></span>
@@ -67,7 +68,7 @@
         <div class="tipline" id="tipCard">
           <span class="tip-ic">💡</span>
           <div class="tip-body">
-            <span class="tip-kicker">טיפ ללמידה</span>
+            <span class="tip-kicker" id="tipKicker">טיפ ללמידה</span>
             <span class="tip-text" id="tipText"></span>
           </div>
           <button class="tip-next" id="tipNext" title="טיפ נוסף">↻</button>
@@ -152,6 +153,7 @@
         <div class="play-head">
           <button class="kebab" id="backBtn" title="חזרה">→</button>
           <span class="play-title" id="playTitle"></span>
+          <button class="kebab" id="subBtn" title="כתוביות">🅰</button>
           <button class="kebab" id="playKebab" title="פעולות">⋯</button>
         </div>
         <div class="screen">
@@ -188,6 +190,57 @@
           </div>
           <div class="tc-list" id="tcList"></div>
           <div class="tc-status" id="tcStatus"></div>
+        </div>
+      </section>
+
+      <!-- in-app usage guide -->
+      <section class="view" id="view-guide" hidden>
+        <div class="kicker">מדריך שימוש</div>
+        <div class="guide">
+          <p class="guide-intro">Subtitle Sidekick מתמלל הרצאות מוקלטות לעברית (ולשפות נוספות) ומציג כתוביות מסונכרנות. הכול רץ אצלכם במחשב כברירת מחדל — בלי חשבון ובלי עלות.</p>
+
+          <h3>🎬 שלושת מצבי התמלול</h3>
+          <ul>
+            <li><b>מקומי — מדויק</b>: מודל עברית ייעודי, הכי מדויק לעברית. רץ במחשב, פרטי לחלוטין. איטי יותר ללא כרטיס מסך.</li>
+            <li><b>מקומי — מהיר</b>: מודל קל יותר, מהיר בהרבה על מעבד רגיל, בתמורה למעט דיוק. תומך גם באנגלית וזיהוי-אוטומטי.</li>
+            <li><b>☁ שרת GPU (ענן)</b>: הכי מהיר — דורש הקמת שרת RunPod אישי (חד-פעמי). האודיו עולה רק לשרת שלכם.</li>
+          </ul>
+
+          <h3>🌍 בחירת שפה</h3>
+          <p>לכל הרצאה בוחרים שפה: <b>עברית</b> (מודל ייעודי), <b>אנגלית</b>, או <b>זיהוי אוטומטי</b>. לתוכן מעורב עברית-אנגלית — נסו "זיהוי אוטומטי" במצב מקומי.</p>
+
+          <h3>➕ הוספת הרצאה</h3>
+          <ul>
+            <li><b>קובץ</b>: גוררים או בוחרים קובץ וידאו/אודיו (אפשר כמה יחד — נכנסים לתור שמתמלל סדרתית).</li>
+            <li><b>קישור</b>: מדביקים קישור (YouTube / Moodle) ולוחצים "הורד".</li>
+            <li>לפני ההעלאה אפשר לבחור <b>קורס</b> ו<b>שפה</b>.</li>
+          </ul>
+
+          <h3>▶ הנגן והכתוביות</h3>
+          <ul>
+            <li>הכתוביות מסונכרנות לאודיו ונראות גם במסך מלא.</li>
+            <li>כפתור <b>🅰 כתוביות</b> (למעלה בנגן) שולט על גודל ורקע הכתוביות — וגם בהגדרות.</li>
+            <li>שליטה במהירות הניגון (0.5x–2x), דילוג 10 שניות, ומסך מלא.</li>
+            <li><b>"המשך מאיפה שעצרת"</b> במסך הבית מחזיר אתכם לנקודה האחרונה.</li>
+          </ul>
+
+          <h3>✏️ עריכה, חיפוש וייצוא</h3>
+          <ul>
+            <li>אפשר לערוך כל שורת תמליל ישירות בנגן ולשמור — מתקנים טעות בקליק.</li>
+            <li>חיפוש בכתוביות (בנגן ובמסך הבית) קופץ ישר לרגע שחיפשתם.</li>
+            <li>ייצוא התמליל ל-Word או TXT.</li>
+          </ul>
+
+          <h3>📚 קורסים וארגון</h3>
+          <p>כל הרצאה נרשמת לתפריט הצד (☰), מאורגנת לפי קורסים. תפריט הפעולות (⋯) מאפשר שינוי שם, העברה לקורס אחר, פתיחה בדפדפן והסרה.</p>
+
+          <h3>☁ הקמת שרת GPU (אופציונלי)</h3>
+          <p>למצב הענן צריך endpoint אישי ב-RunPod. ההוראות המלאות נמצאות בקובץ ה-README של הפרויקט. אין שרת משותף — הפרטים נשמרים רק במחשב הזה.</p>
+
+          <h3>🔒 פרטיות</h3>
+          <p>במצב מקומי האודיו לא יוצא מהמחשב. במצב ענן הוא מועלה רק לשרת <b>שאתם הגדרתם</b> — לא לשרת של מפתח האפליקציה.</p>
+
+          <button class="btn guide-back" id="guideBack">חזרה למסך הבית</button>
         </div>
       </section>
     </div>
