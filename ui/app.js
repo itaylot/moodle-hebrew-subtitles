@@ -1057,16 +1057,17 @@ function renderWidgets() {
   const viewed = library.lectures.filter((l) => l.viewed).length;
   const firstUnwatched = library.lectures.find((l) => !l.viewed);
   const items = [
-    { ic: "🎬", num: total, lbl: "הרצאות", act: openDrawer },
-    { ic: "👁", num: viewed, lbl: "נצפו", act: openDrawer },
-    { ic: "⏳", num: total - viewed, lbl: "ממתינות",
+    { ic: "i-film", num: total, lbl: "הרצאות", act: openDrawer },
+    { ic: "i-eye", num: viewed, lbl: "נצפו", act: openDrawer },
+    { ic: "i-clock", num: total - viewed, lbl: "ממתינות",
       act: () => (firstUnwatched ? openLecture(firstUnwatched.video) : openDrawer()) },
-    { ic: "📚", num: library.courses.length, lbl: "קורסים", act: openDrawer },
+    { ic: "i-library", num: library.courses.length, lbl: "קורסים", act: openDrawer },
   ];
   for (const s of items) {
     const el = document.createElement("button");
     el.className = "widget";
-    el.innerHTML = `<div class="w-ic">${s.ic}</div><div class="w-num">${s.num}</div><div class="w-lbl">${esc(s.lbl)}</div>`;
+    el.innerHTML = `<div class="w-ic"><svg class="ic-lg"><use href="#${s.ic}"/></svg></div>` +
+      `<div class="w-num">${s.num}</div><div class="w-lbl">${esc(s.lbl)}</div>`;
     el.onclick = s.act;
     wrap.appendChild(el);
   }
