@@ -94,7 +94,7 @@ body {
 /* ── app window (card) — capped to screen height, inner content scrolls if needed ── */
 .win {
   width: 100%;
-  max-width: 600px;
+  max-width: 720px;   /* wider than before so large windows aren't mostly empty margin */
   max-height: 100%;
   display: flex;
   flex-direction: column;
@@ -148,6 +148,17 @@ body {
   background: none; border: none; cursor: pointer;
   color: var(--muted); font-size: 15px; padding: 4px; line-height: 1;
 }
+/* theme toggle: moon (light mode → switch to dark) crossfades with sun (dark mode → switch to light) */
+.themetoggle { position: relative; width: 27px; height: 27px; display: flex; align-items: center; justify-content: center; }
+.themetoggle .ic {
+  position: absolute; transition: opacity 0.75s var(--ease), transform 0.75s var(--ease);
+}
+.themetoggle .ic-sun  { opacity: 0; transform: rotate(-90deg) scale(0.4); }
+.themetoggle .ic-moon { opacity: 1; transform: rotate(0) scale(1); }
+body.dark .themetoggle .ic-moon { opacity: 0; transform: rotate(90deg) scale(0.4); }
+body.dark .themetoggle .ic-sun  { opacity: 1; transform: rotate(0) scale(1); }
+@media (prefers-reduced-motion: reduce) { .themetoggle .ic { transition: opacity var(--dur) linear; transform: none !important; } }
+
 .barx { display: flex; gap: 7px; }
 .barx span { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; }
 .barx span:hover { filter: brightness(1.1); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06); }
@@ -321,6 +332,10 @@ body {
 .guide li { margin: 0; }
 .guide p { margin: 4px 0; }
 .guide b { color: var(--c2); }
+.guide-note {
+  background: var(--accent-soft); border: 1px solid var(--hairline); border-radius: 12px;
+  padding: 11px 13px; margin: 8px 0 4px; font-size: 12.5px; line-height: 1.55;
+}
 .guide-back { margin-top: 22px; width: 100%; }
 
 /* ── global search (home screen) ── */
@@ -423,6 +438,44 @@ body {
 .folder-row .newcourse-in { flex: 1; }
 .folder-row .folder-pick { flex: none; white-space: nowrap; }
 .settings-status { font-size: 12px; color: var(--c2); margin-top: 10px; min-height: 16px; }
+/* ── updates (settings) ── */
+.update-box { display: flex; flex-direction: column; gap: 8px; }
+.update-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.update-ver { font-size: 12.5px; color: var(--muted); }
+.update-check {
+  flex: none; background: transparent; color: var(--accent); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 7px 13px; font-family: inherit; font-size: 12.5px;
+  font-weight: 600; cursor: pointer; transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.update-check:hover { border-color: var(--accent); background: var(--accent-soft); }
+.update-status { font-size: 12.5px; color: var(--c2); min-height: 16px; }
+.update-now { width: 100%; }
+.update-note { font-size: 11px; color: var(--muted); line-height: 1.45; opacity: 0.85; }
+
+/* ── correction dictionary (settings) ── */
+.dict-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.dict-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 10px; }
+.dict-item {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px;
+  font-size: 12.5px;
+}
+.dict-f { color: var(--text); }
+.dict-a { color: var(--muted); flex: none; }
+.dict-t { color: var(--accent); font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dict-del { flex: none; background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 2px 4px; }
+.dict-del:hover { color: #c0533e; }
+.dict-addrow { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.dict-in { flex: 1; min-width: 0; }
+.dict-arrow { flex: none; color: var(--muted); font-size: 13px; }
+.dict-add { flex: none; padding: 10px 14px; }
+.dict-apply {
+  width: 100%; background: transparent; color: var(--accent); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 9px; font-family: inherit; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.dict-apply:hover { border-color: var(--accent); background: var(--accent-soft); }
+
 .settings-cost {
   margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 6px;
@@ -448,6 +501,16 @@ body {
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .coursesel:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.course-add {
+  flex: none; background: transparent; color: var(--accent); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 9px 13px; font-family: inherit; font-size: 12.5px;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.course-add:hover { border-color: var(--accent); background: var(--accent-soft); }
+.newcourse-inline { display: flex; gap: 8px; margin-top: 10px; }
+.newcourse-inline[hidden] { display: none; }
+.course-add-ok { flex: none; }
 
 /* ── sidebar: my courses ── */
 .drawer-ov {
@@ -591,9 +654,15 @@ body {
 }
 .filechip span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fcic { color: var(--c3); flex: none; }
+.procmeta {
+  display: inline-flex; align-items: center; margin-top: 10px; margin-inline-start: 2px;
+  font-size: 12px; font-weight: 600; color: var(--accent);
+  background: var(--accent-soft); border-radius: 999px; padding: 4px 12px;
+}
+.procmeta[hidden] { display: none; }
 .stage {
   font-family: var(--font-display);
-  margin-top: 24px; font-size: 20px; font-weight: 800; letter-spacing: -0.02em;
+  margin-top: 16px; font-size: 20px; font-weight: 800; letter-spacing: -0.02em;
 }
 .prog { display: flex; align-items: center; gap: 13px; margin-top: 16px; }
 .bar2 { flex: 1; height: 10px; border-radius: 6px; background: var(--panel); overflow: hidden; }
@@ -728,12 +797,18 @@ body {
 /* ── screen 3: player ── */
 .screen {
   position: relative; background: var(--screen);
-  border-radius: 16px; height: 260px; overflow: hidden;
+  border-radius: 16px; overflow: hidden;
+  /* grow with the window instead of a fixed 260px; 16:9 keeps the frame natural, capped so it
+     never pushes the transcript off a short window */
+  aspect-ratio: 16 / 9; max-height: min(56vh, 460px);
 }
 .screen video {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain; background: #000;
 }
+/* demo mode: soft poster behind the source-less player during the recorded tour */
+body.demo-mode .screen { background: radial-gradient(120% 100% at 50% 0%, #2a2018, var(--screen)); }
+body.demo-mode .screen video { background: transparent; }
 .cc {
   position: absolute; top: 12px; right: 12px; z-index: 2; cursor: pointer;
   background: var(--c2); color: #fff; font-size: 10px; font-weight: 700; font-family: inherit;
@@ -746,6 +821,8 @@ body {
   font-size: 14.5px; font-weight: 500; line-height: 1.5;
   padding: 7px 16px; border-radius: 10px; max-width: 84%;
   text-align: center; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  /* defensive: even if a stray long cue slips through, wrap it and cap height instead of clipping */
+  overflow-wrap: anywhere; max-height: 40%; overflow: hidden;
 }
 .subline:empty { display: none; }
 
@@ -836,7 +913,7 @@ body[data-sub-bg="none"]  video::cue { background: transparent; color: #fff; tex
   transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
 .tc-act:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.tc-list { max-height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.tc-list { max-height: max(190px, 30vh); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .tc-row {
   display: flex; gap: 10px; align-items: flex-start;
   padding: 5px 8px; border-radius: 9px;
@@ -854,6 +931,34 @@ body[data-sub-bg="none"]  video::cue { background: transparent; color: #fff; tex
 }
 .tc-text:focus { background: var(--panel); box-shadow: 0 0 0 1px var(--accent); }
 .tc-status { margin-top: 8px; font-size: 12px; color: var(--c2); min-height: 16px; }
+
+/* ── confirmation modal (destructive actions) ── */
+.modal-ov {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(20, 14, 8, 0.5);
+  display: flex; align-items: center; justify-content: center; padding: 22px;
+  animation: fadein 0.14s ease;
+}
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .modal-ov { animation: none; } }
+.modal {
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  max-width: 380px; width: 100%; padding: 22px 22px 18px; box-shadow: var(--shadow-lg);
+}
+.modal-title { font-family: var(--font-display); font-size: 17px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); margin-bottom: 10px; }
+.modal-body { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 18px; white-space: pre-line; }
+.modal-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
+.modal-btn {
+  padding: 9px 15px; border-radius: var(--r-sm); cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  background: var(--accent); color: #fff; border: 1px solid transparent;
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease), filter var(--dur) var(--ease);
+}
+.modal-btn:hover { background: var(--accent-deep); transform: translateY(-1px); }
+.modal-cancel { background: transparent; color: var(--text); border-color: var(--line); }
+.modal-cancel:hover { background: var(--panel); border-color: var(--muted); transform: none; }
+.modal-danger { background: #c0533e; }
+.modal-danger:hover { background: #a5442f; filter: none; }
 
 /* ── first-run onboarding modal ── */
 .onboard-ov {

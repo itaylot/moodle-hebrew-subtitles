@@ -7,6 +7,68 @@ window.addEventListener("unhandledrejection", (e) => _log("reject: " + e.reason)
 
 const $ = (id) => document.getElementById(id);
 
+// ── demo mode (index.html?demo): mock the Python bridge with canned data so the REAL UI runs
+// standalone for a screen-recordable product tour. No effect on the normal app. ──
+const DEMO = new URLSearchParams(location.search).has("demo");
+if (DEMO) installDemoBridge();
+function installDemoBridge() {
+  const courses = ["חדו\"א 2 - הרצאות", "מבוא לבינה מלאכותית", "אלגוריתמים"];
+  const demoCues = [
+    { start: 0, end: 3.2, text: "שלום לכולם, נתחיל את ההרצאה של היום" },
+    { start: 3.2, end: 7.0, text: "בשיעור הקודם דיברנו על גבולות של פונקציות" },
+    { start: 7.0, end: 10.5, text: "היום נעבור לנגזרות ולמשמעות הגאומטרית שלהן" },
+    { start: 10.5, end: 14.0, text: "הנגזרת מתארת את קצב השינוי של הפונקציה" },
+    { start: 14.0, end: 17.5, text: "כלומר, את שיפוע המשיק בכל נקודה על הגרף" },
+    { start: 17.5, end: 21.0, text: "נראה מיד דוגמה מספרית שתמחיש את זה" },
+  ];
+  const lectures = [
+    { video: "demo/calc-05.mp4", srt: "demo/calc-05.srt", course: "חדו\"א 2 - הרצאות", title: "חדו\"א 2 — שיעור 5: נגזרות", added: 1782900000, viewed: false },
+    { video: "demo/calc-04.mp4", srt: "demo/calc-04.srt", course: "חדו\"א 2 - הרצאות", title: "חדו\"א 2 — שיעור 4: רציפות", added: 1782810000, viewed: true },
+    { video: "demo/ai-03.mp4", srt: "demo/ai-03.srt", course: "מבוא לבינה מלאכותית", title: "AI — Lecture 3: Search", added: 1782700000, viewed: true },
+    { video: "demo/algo-02.mp4", srt: "demo/algo-02.srt", course: "אלגוריתמים", title: "אלגוריתמים — שיעור 2", added: 1782600000, viewed: true },
+  ];
+  const settings = { transcription_mode: "cloud", transcription_language: "he", subtitle_size: "md",
+    subtitle_bg: "dark", library_dir: "C:\\הרצאות",
+    cloud: { endpoint_url: "https://api.runpod.ai/v2/demo", api_key: "demo", price_per_hour: 0.39, total_seconds: 5400, total_cost: 0.59 } };
+  const ok = () => Promise.resolve(true);
+  window.__demoCues = demoCues;   // the demo controller animates player playback from these
+  window.pywebview = { api: {
+    log: () => {},
+    get_settings: () => Promise.resolve(settings),
+    save_settings: (d) => { if (d && d.cloud) Object.assign(settings.cloud, d.cloud); Object.assign(settings, d || {}); return Promise.resolve(settings); },
+    library: () => Promise.resolve({ courses, lectures }),
+    load_queue: () => Promise.resolve([]), save_queue: ok,
+    open_lecture: () => Promise.resolve({ video: "demo/calc-05.mp4", cues: demoCues, srt: "demo/calc-05.srt" }),
+    media_url: () => Promise.resolve(""),
+    search: (q) => { q = (q || "").trim(); const hits = demoCues.filter((c) => c.text.includes(q));
+      return Promise.resolve(q && hits.length ? [{ video: "demo/calc-05.mp4", title: "חדו\"א 2 — שיעור 5: נגזרות", course: "חדו\"א 2 - הרצאות", hits }] : []); },
+    version: () => Promise.resolve("1.0.0"),
+    check_update: () => Promise.resolve({ current: "1.0.0", latest: "1.0.0", update_available: false }),
+    get_dictionary: () => Promise.resolve({ rules: [{ from: "פאי תורץ", to: "PyTorch" }, { from: "ניורל נטוורק", to: "Neural Network" }] }),
+    save_dictionary: (r) => Promise.resolve({ rules: r }), reapply_dictionary: () => Promise.resolve(3),
+    apply_dictionary_to_cues: (c) => Promise.resolve(c),
+    create_course: ok, set_lecture_course: ok, rename_lecture: ok, remove_lecture: ok, remove_course: ok,
+    rename_course: ok, save_srt: ok, export: () => Promise.resolve("demo.txt"),
+    pick_file: () => Promise.resolve("C:\\הרצאות\\חדוא 2 — שיעור 6.mp4"),
+    pick_folder: () => Promise.resolve(""),
+    open_in_browser: ok, win_close: () => {}, win_minimize: () => {}, win_fullscreen: () => {},
+    // simulate a transcription: stream progress then finish, driving the real processing screen
+    start: (path) => {
+      let p = 0;
+      window.onProgress({ stage: "extract", percent: 100, device: "cloud" });
+      const t = setInterval(() => {
+        p += 10;                                          // deterministic ~4s run for the demo
+        if (p >= 100) { clearInterval(t);
+          window.onDone({ video: path, cues: demoCues, srt: "demo.srt", viewer: "demo.html", count: demoCues.length });
+        } else { window.onProgress({ stage: "transcribe", percent: Math.round(p), eta: (100 - p) * 0.6, device: "cloud" }); }
+      }, 420);
+      return Promise.resolve(true);
+    },
+  } };
+  try { localStorage.setItem("onboarded", "1"); localStorage.setItem("theme", "light"); } catch (e) {}
+  setTimeout(() => window.dispatchEvent(new Event("pywebviewready")), 0);   // real app boots off this
+}
+
 // queue: each job { id, sourcePath, name, courseName, status:'queued'|'running'|'done'|'failed', error, createdAt, res }
 // JS owns the queue state; Python is a worker + persists it (engine.save_queue/load_queue).
 let queue = [];
@@ -43,7 +105,12 @@ $("guideBack").addEventListener("click", () => show("home"));
 
 // ── light / dark theme ──
 function applyTheme(t) {
-  document.body.classList.toggle("dark", t === "dark");
+  const dark = t === "dark";
+  document.body.classList.toggle("dark", dark);
+  // label/tooltip describe the NEXT action (what a click will switch to)
+  const label = dark ? "מעבר למצב בהיר" : "מעבר למצב כהה";
+  const btn = $("themeBtn");
+  if (btn) { btn.title = label; btn.setAttribute("aria-label", label); }
   try { localStorage.setItem("theme", t); } catch (e) {}
 }
 $("themeBtn").addEventListener("click", () =>
@@ -98,7 +165,43 @@ function openSettingsDrawer() {
     $("settingsSubBg").value = (s && s.subtitle_bg) || "dark";
     renderCost(cloud);
   });
+  $("dictStatus").textContent = "";
+  loadDict();
+  loadVersion();
 }
+
+// ── updates ──
+async function loadVersion() {
+  $("updateStatus").textContent = "";
+  $("updateNowBtn").hidden = true;
+  try {
+    const v = await window.pywebview.api.version();
+    $("updateVer").textContent = "גרסה נוכחית: " + v;
+  } catch (e) { $("updateVer").textContent = ""; }
+}
+$("updateCheckBtn").addEventListener("click", async () => {
+  $("updateStatus").textContent = "בודק…";
+  $("updateNowBtn").hidden = true;
+  let r;
+  try { r = await window.pywebview.api.check_update(); } catch (e) { r = null; }
+  if (!r || r.error) { $("updateStatus").textContent = "לא ניתן לבדוק כרגע — בדקו את חיבור האינטרנט."; return; }
+  if (r.update_available) {
+    $("updateStatus").textContent = `יש גרסה חדשה! (${r.current} ← ${r.latest})`;
+    $("updateNowBtn").hidden = false;
+  } else {
+    $("updateStatus").textContent = `אתם מעודכנים — גרסה ${r.current} היא האחרונה ✓`;
+  }
+});
+$("updateNowBtn").addEventListener("click", async () => {
+  const ok = await confirmModal({
+    title: "עדכון לגרסה האחרונה",
+    body: "האפליקציה תיסגר, תוריד ותתקין את הגרסה החדשה, ותיפתח מחדש אוטומטית (כדקה). ההרצאות וההגדרות שלכם לא מושפעות.",
+    buttons: [{ label: "עדכן עכשיו", value: "go" }],
+  });
+  if (!ok) return;
+  $("updateStatus").textContent = "מוריד ומתקין… האפליקציה תיסגר בקרוב.";
+  await window.pywebview.api.run_update();
+});
 // subtitle appearance: apply immediately and persist on change
 $("settingsSubSize").addEventListener("change", () => {
   applySubtitleStyle($("settingsSubSize").value, $("settingsSubBg").value);
@@ -135,9 +238,77 @@ $("settingsSaveBtn").addEventListener("click", () => {
   window.pywebview.api.save_settings({ cloud: { endpoint_url, api_key, price_per_hour } })
     .then(() => { $("settingsStatus").textContent = "נשמר ✓"; });
 });
-$("costReset").addEventListener("click", () => {
-  window.pywebview.api.save_settings({ cloud: { total_seconds: 0, total_cost: 0 } })
-    .then((s) => renderCost((s && s.cloud) || {}));
+$("costReset").addEventListener("click", async () => {
+  const ok = await confirmModal({
+    title: "איפוס מונה העלות",
+    body: "מונה זמן העיבוד והעלות המצטברת יתאפסו לאפס. הפעולה לא משפיעה על ההרצאות שלכם — רק על מספר ההערכה המוצג כאן.",
+    buttons: [{ label: "איפוס המונה", value: "reset", danger: true }],
+  });
+  if (!ok) return;
+  const s = await window.pywebview.api.save_settings({ cloud: { total_seconds: 0, total_cost: 0 } });
+  renderCost((s && s.cloud) || {});
+});
+
+// ── personal correction dictionary ──
+let dictionary = { rules: [] };
+async function loadDict() {
+  try { dictionary = await window.pywebview.api.get_dictionary(); } catch (e) { dictionary = { rules: [] }; }
+  if (!dictionary || !Array.isArray(dictionary.rules)) dictionary = { rules: [] };
+  renderDict();
+}
+function renderDict() {
+  const list = $("dictList");
+  list.innerHTML = "";
+  if (!dictionary.rules.length) {
+    list.innerHTML = '<div class="dict-empty">אין עדיין תיקונים.</div>';
+    return;
+  }
+  dictionary.rules.forEach((r, i) => {
+    const row = document.createElement("div");
+    row.className = "dict-item";
+    const f = document.createElement("span"); f.className = "dict-f"; f.textContent = r.from;
+    const a = document.createElement("span"); a.className = "dict-a"; a.textContent = "⟵";
+    const t = document.createElement("span"); t.className = "dict-t"; t.textContent = r.to || "(מחיקה)";
+    const del = document.createElement("button"); del.className = "dict-del"; del.textContent = "✕"; del.title = "מחיקת התיקון";
+    del.onclick = async () => {
+      dictionary.rules.splice(i, 1);
+      dictionary = await window.pywebview.api.save_dictionary(dictionary.rules);
+      renderDict();
+    };
+    row.append(f, a, t, del);
+    list.appendChild(row);
+  });
+}
+async function addDictRule(from, to) {
+  from = (from || "").trim(); to = (to || "").trim();
+  if (!from) return;
+  dictionary.rules = dictionary.rules.filter((r) => r.from !== from).concat([{ from, to }]);
+  dictionary = await window.pywebview.api.save_dictionary(dictionary.rules);
+  renderDict();
+}
+$("dictAddBtn").addEventListener("click", () => {
+  addDictRule($("dictFrom").value, $("dictTo").value);
+  $("dictFrom").value = ""; $("dictTo").value = "";
+});
+$("dictTo").addEventListener("keydown", (e) => { if (e.key === "Enter") $("dictAddBtn").click(); });
+$("dictApplyBtn").addEventListener("click", async () => {
+  $("dictStatus").textContent = "מחיל על הספרייה…";
+  const n = await window.pywebview.api.reapply_dictionary();
+  $("dictStatus").textContent = n ? `✓ הוחל — ${n} שורות כתוביות עודכנו בספרייה.` : "לא נמצאו התאמות לעדכון.";
+});
+// add the selected transcript word/phrase to the dictionary and apply it to the open lecture now
+$("dictAddSelBtn").addEventListener("click", async () => {
+  const sel = (window.getSelection().toString() || "").trim();
+  const from = (sel || prompt("איזו מילה/ביטוי מתומללים בצורה שגויה?", "") || "").trim();
+  if (!from) return;
+  const to = prompt(`מה התיקון הנכון עבור "${from}"?`, "");
+  if (to === null) return;
+  await addDictRule(from, to);
+  // apply immediately to the lecture on screen (Python does the whole-word replace, then re-sync)
+  cues = await window.pywebview.api.apply_dictionary_to_cues(cues);
+  await window.pywebview.api.save_srt(currentVideo, cues);
+  buildVtt(cues); renderTranscript();
+  $("tcStatus").textContent = "✓ התיקון נוסף למילון והוחל על ההרצאה";
 });
 
 // returns {endpoint_url, api_key} if valid, null if not in cloud mode, undefined if cloud not configured (cancel)
@@ -327,6 +498,7 @@ async function processNext() {
   saveQueueSoon();
   const idx = queue.filter((q) => q.status === "done").length + 1;
   $("procName").textContent = (queue.length > 1 ? `(${idx}/${queue.length}) ` : "") + item.name;
+  showProcMeta($("modeSel").value, item.language);
   $("fill").style.width = "0"; $("pct").textContent = "0%"; $("eta").textContent = "";
   resetSteps();
   renderQueue();
@@ -373,9 +545,21 @@ $("cancelBtn").addEventListener("click", () => {
 const STAGE_LABEL = { extract: "אודיו", transcribe: "תמלול", sync: "סנכרון" };
 const STAGE_HEAD = {
   extract: "מכין את האודיו…",
-  transcribe: "מתמלל את ההרצאה לעברית…",
+  transcribe: "מתמלל את ההרצאה…",
   sync: "מסנכרן את הכתוביות…",
 };
+
+// small "language · model" descriptor shown during transcription so the user knows what's running
+function showProcMeta(mode, language) {
+  const lang = language === "en" ? "אנגלית" : language === "" ? "זיהוי אוטומטי" : "עברית";
+  let model;
+  if (mode === "cloud") model = "שרת GPU";
+  else if (mode === "local_fast" || language !== "he") model = "מקומי · מודל מהיר";
+  else model = "מקומי · מודל מדויק";
+  const el = $("procMeta");
+  el.textContent = `${lang} · ${model}`;
+  el.hidden = false;
+}
 const STAGE_ORDER = ["extract", "transcribe", "sync"];
 
 function resetSteps(allDone) {
@@ -494,6 +678,42 @@ function renderQueue() {
   });
 }
 function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+// ── confirmation modal (replaces browser confirm() for destructive actions) ──
+// buttons: [{label, value, danger}]. Resolves with the chosen value, or null on cancel/backdrop.
+function confirmModal({ title, body, buttons }) {
+  return new Promise((resolve) => {
+    document.querySelectorAll(".modal-ov").forEach((m) => m.remove());
+    const ov = document.createElement("div");
+    ov.className = "modal-ov";
+    const card = document.createElement("div");
+    card.className = "modal";
+    const h = document.createElement("div");
+    h.className = "modal-title"; h.textContent = title;
+    const b = document.createElement("div");
+    b.className = "modal-body"; b.textContent = body;
+    const row = document.createElement("div");
+    row.className = "modal-actions";
+    const done = (v) => { ov.remove(); document.removeEventListener("keydown", onKey, true); resolve(v); };
+    const cancel = document.createElement("button");
+    cancel.className = "modal-btn modal-cancel"; cancel.textContent = "ביטול";
+    cancel.onclick = () => done(null);
+    row.appendChild(cancel);
+    for (const btn of buttons) {
+      const el = document.createElement("button");
+      el.className = "modal-btn" + (btn.danger ? " modal-danger" : "");
+      el.textContent = btn.label;
+      el.onclick = () => done(btn.value);
+      row.appendChild(el);
+    }
+    card.appendChild(h); card.appendChild(b); card.appendChild(row);
+    ov.appendChild(card);
+    ov.addEventListener("click", (e) => { if (e.target === ov) done(null); });
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); done(null); } };
+    document.addEventListener("keydown", onKey, true);
+    document.body.appendChild(ov);
+  });
+}
 
 // ── native HTML5 drag-and-drop reorder (queued items only) ──
 let dragId = null;
@@ -922,7 +1142,15 @@ function renderDrawer() {
       del.className = "course-del"; del.textContent = "🗑"; del.title = "מחיקת קורס";
       del.onclick = async (e) => {
         e.stopPropagation();
-        if (!confirm(`למחוק את הקורס "${name}"? ההרצאות יעברו ל"ללא קורס" (הקבצים לא נמחקים).`)) return;
+        const n = lecs.length;
+        const ok = await confirmModal({
+          title: `מחיקת הקורס "${name}"`,
+          body: n
+            ? `${n} ${n === 1 ? "הרצאה תעבור" : "הרצאות יעברו"} ל"ללא קורס". קובצי הווידאו והכתוביות לא נמחקים — רק הקורס עצמו.`
+            : "הקורס ריק — אין הרצאות מושפעות.",
+          buttons: [{ label: "מחיקת הקורס", value: "del", danger: true }],
+        });
+        if (!ok) return;
         await window.pywebview.api.remove_course(name);
         openCourses.delete(name);
         refreshLibrary();
@@ -1138,8 +1366,16 @@ function showActionMenu(anchorEl, video, course, title) {
   const moveRow = document.createElement("div");
   moveRow.className = "am-item am-move";
   const sel = document.createElement("select");
-  sel.innerHTML = '<option value="">ללא קורס</option>' +
-    library.courses.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  // build options via DOM (not innerHTML) so course names containing a double-quote can't break
+  // the value attribute — that truncation was creating phantom courses and wrong-course moves.
+  const none = document.createElement("option");
+  none.value = ""; none.textContent = "ללא קורס";
+  sel.appendChild(none);
+  for (const c of library.courses) {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    sel.appendChild(o);
+  }
   sel.value = course || "";
   sel.onchange = async () => {
     menu.remove();
@@ -1165,10 +1401,20 @@ function showActionMenu(anchorEl, video, course, title) {
   menu.appendChild(browseBtn);
 
   const delBtn = document.createElement("button");
-  delBtn.className = "am-item am-danger"; delBtn.textContent = "🗑 הסרה מהרשימה";
+  delBtn.className = "am-item am-danger"; delBtn.textContent = "🗑 הסרה";
   delBtn.onclick = async () => {
     menu.remove();
-    await window.pywebview.api.remove_lecture(video);
+    const choice = await confirmModal({
+      title: "הסרת ההרצאה",
+      body: `"${title || "ההרצאה"}"\n\n• הסרה מהרשימה: ההרצאה יורדת מהספרייה, אבל קובץ הווידאו והכתוביות נשארים על הדיסק.\n• מחיקה כולל קבצים: מוחק לצמיתות גם את הווידאו, הכתוביות והנגן. אי אפשר לשחזר.`,
+      buttons: [
+        { label: "הסרה מהרשימה", value: "list" },
+        { label: "מחיקה כולל קבצים", value: "files", danger: true },
+      ],
+    });
+    if (!choice) return;
+    await window.pywebview.api.remove_lecture(video, choice === "files");
+    if (currentVideo === video) show("home");
     refreshLibrary();
   };
   menu.appendChild(delBtn);
@@ -1329,6 +1575,27 @@ $("newCourseBtn").addEventListener("click", async () => {
 $("newCourseIn").addEventListener("keydown", (e) => {
   if (e.key === "Enter") $("newCourseBtn").click();
   if (e.key === "Escape") { $("newCourseIn").value = ""; $("newCourseIn").hidden = true; }
+});
+
+// ── create a course inline on the upload screen (same mechanism, auto-selects the new course) ──
+$("courseAddBtn").addEventListener("click", () => {
+  const row = $("courseAddRow");
+  row.hidden = !row.hidden;
+  if (!row.hidden) $("courseAddIn").focus();
+});
+async function createCourseInline() {
+  const name = $("courseAddIn").value.trim();
+  if (name) {
+    await window.pywebview.api.create_course(name);
+    await refreshLibrary();          // repopulates courseSel from the library
+    $("courseSel").value = name;     // auto-select the just-created course for this upload
+  }
+  $("courseAddIn").value = ""; $("courseAddRow").hidden = true;
+}
+$("courseAddOk").addEventListener("click", createCourseInline);
+$("courseAddIn").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") createCourseInline();
+  if (e.key === "Escape") { $("courseAddIn").value = ""; $("courseAddRow").hidden = true; }
 });
 
 // ── player keyboard shortcuts (Space · ← · →) ──

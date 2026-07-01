@@ -153,6 +153,15 @@ def load_library():
     data.setdefault("lectures", [])
     # filter out lectures whose file no longer exists on disk
     data["lectures"] = [l for l in data["lectures"] if os.path.exists(l.get("video", ""))]
+    # self-heal the course list: de-dupe, drop blanks, and make sure every course a surviving
+    # lecture references is actually listed — otherwise renderDrawer hides that lecture entirely
+    # (this is what made "orphaned"/mislabeled lectures invisible in older, corrupted libraries).
+    seen = set(); courses = []
+    for c in list(data["courses"]) + [l.get("course") for l in data["lectures"]]:
+        c = (c or "").strip()
+        if c and c not in seen:
+            seen.add(c); courses.append(c)
+    data["courses"] = courses
     return data
 
 
@@ -214,6 +223,82 @@ def add_cloud_usage(seconds):
     with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return data
+
+
+# ── personal correction dictionary: recurring transcription fixes (names, terms, English words) ──
+DICT_PATH = os.path.join(LIB_DIR, "dictionary.json")
+
+
+def load_dictionary():
+    """Returns {rules: [{from, to}, …]} (global find→replace applied after transcription)."""
+    try:
+        with open(DICT_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+    rules = data.get("rules") if isinstance(data, dict) else None
+    return {"rules": rules if isinstance(rules, list) else []}
+
+
+def save_dictionary(rules):
+    """Persist rules (drops blanks/dupes). Accepts a list of {from,to}. Returns the cleaned dict."""
+    clean, seen = [], set()
+    for r in (rules or []):
+        frm = (r.get("from") or "").strip()
+        to = (r.get("to") or "").strip()
+        if frm and frm not in seen:
+            seen.add(frm)
+            clean.append({"from": frm, "to": to})
+    os.makedirs(LIB_DIR, exist_ok=True)
+    with open(DICT_PATH, "w", encoding="utf-8") as f:
+        json.dump({"rules": clean}, f, ensure_ascii=False, indent=2)
+    return {"rules": clean}
+
+
+def _compile_dictionary(rules):
+    """Compile rules to (regex, replacement). \\b keeps replacements on whole words only, so a rule
+    never rewrites text inside an unrelated word (Python \\b is Unicode-aware, incl. Hebrew)."""
+    out = []
+    for r in (rules or []):
+        frm = (r.get("from") or "").strip()
+        if frm:
+            out.append((re.compile(r"\b" + re.escape(frm) + r"\b"), r.get("to") or ""))
+    return out
+
+
+def apply_dictionary_cues(cues, rules=None):
+    """Apply correction rules to cue texts in place. Returns (cues, cues_changed_count)."""
+    compiled = _compile_dictionary(load_dictionary()["rules"] if rules is None else rules)
+    if not compiled:
+        return cues, 0
+    changed = 0
+    for c in cues:
+        text = c["text"]
+        for pat, to in compiled:
+            text = pat.sub(to, text)
+        if text != c["text"]:
+            c["text"] = text
+            changed += 1
+    return cues, changed
+
+
+def reapply_dictionary_library():
+    """Re-run the current dictionary over every saved SRT in the library. Returns cues changed."""
+    compiled = _compile_dictionary(load_dictionary()["rules"])
+    if not compiled:
+        return 0
+    total = 0
+    for lec in load_library()["lectures"]:
+        srt = lec.get("srt")
+        if not srt or not os.path.exists(srt):
+            continue
+        cues = parse_srt(srt)
+        _, changed = apply_dictionary_cues(cues, load_dictionary()["rules"])
+        if changed:
+            write_srt(srt, cues)
+            make_viewer(lec.get("video") or os.path.splitext(srt)[0], cues)
+            total += changed
+    return total
 
 
 # ── transcription queue: persisted jobs so the queue survives app restarts/crashes ──
@@ -346,9 +431,18 @@ def add_lecture(video, srt=None, course="", title=None):
     return save_library(data)
 
 
-def remove_lecture(video):
+def remove_lecture(video, delete_files=False):
+    """Remove a lecture from the library. delete_files=True also deletes the video/srt/viewer on disk."""
     video = os.path.abspath(video)
     data = load_library()
+    lec = next((l for l in data["lectures"] if l.get("video") == video), None)
+    if delete_files and lec:
+        for p in (lec.get("video"), lec.get("srt"), viewer_path(video)):
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
     data["lectures"] = [l for l in data["lectures"] if l.get("video") != video]
     return save_library(data)
 
@@ -473,7 +567,8 @@ def parse_srt(srt):
             continue
         text = " ".join(lines[lines.index(tline) + 1:]).strip()
         if text:
-            cues.append({"start": round(start, 3), "end": round(end, 3), "text": text})
+            # re-chunk over-long cues (old SRTs / hand-edited long lines) so they render readably
+            cues.extend(_split_text(text, start, end))
     return cues
 
 
@@ -591,6 +686,30 @@ def _split_words(words):
     return out
 
 
+def _split_text(text, start, end):
+    """Split plain text (no per-word timing) into ≤MAX_CUE_WORDS cues, distributing time evenly.
+
+    Used when word timestamps are missing (fallback segments, or SRTs read back from disk) so a
+    long segment never renders as one unreadable wall of text over the video.
+    """
+    text = (text or "").strip()
+    words = text.split()
+    if not words:
+        return []
+    if len(words) <= MAX_CUE_WORDS:
+        return [{"start": round(start, 3), "end": round(end, 3), "text": text}]
+    start = float(start); end = float(end)
+    span = max(0.0, end - start)
+    n = (len(words) + MAX_CUE_WORDS - 1) // MAX_CUE_WORDS   # number of chunks
+    out = []
+    for ci, i in enumerate(range(0, len(words), MAX_CUE_WORDS)):
+        chunk = words[i:i + MAX_CUE_WORDS]
+        s = start + span * (ci / n)
+        e = start + span * ((ci + 1) / n)
+        out.append({"start": round(s, 3), "end": round(e, 3), "text": " ".join(chunk)})
+    return out
+
+
 def transcribe(video_path, fast=False, on_progress=None, cloud=None, pause_check=None,
                cancel_check=None, language="he"):
     """Transcribe a file → SRT + cues. on_progress(dict) is called throughout.
@@ -603,9 +722,13 @@ def transcribe(video_path, fast=False, on_progress=None, cloud=None, pause_check
     """
     if cloud:
         import cloud_backend
-        return cloud_backend.transcribe_remote(
+        res = cloud_backend.transcribe_remote(
             video_path, cloud.get("endpoint_url", ""), cloud.get("api_key", ""), on_progress,
             cancel_check=cancel_check, language=language)
+        res["cues"], _ = apply_dictionary_cues(res.get("cues") or [])   # personal corrections
+        if res.get("srt"):
+            write_srt(res["srt"], res["cues"])                          # keep the SRT in sync
+        return res
 
     global _model, _model_name, _device
 
@@ -640,10 +763,7 @@ def transcribe(video_path, fast=False, on_progress=None, cloud=None, pause_check
         if pause_check:                  # cooperative pause — blocks here while paused
             paused_for += pause_check() or 0.0
         words = getattr(seg, "words", None) or []
-        sub = _split_words(words) if words else (
-            [{"start": round(seg.start, 3), "end": round(seg.end, 3), "text": seg.text.strip()}]
-            if seg.text.strip() else []
-        )
+        sub = _split_words(words) if words else _split_text(seg.text, seg.start, seg.end)
         cues.extend(sub)
         if sub and dur:
             elapsed = time.time() - t0 - paused_for
@@ -652,7 +772,32 @@ def transcribe(video_path, fast=False, on_progress=None, cloud=None, pause_check
             emit(stage="transcribe", percent=min(99, int(seg.end / dur * 100)),
                  eta=eta, elapsed=elapsed, line=sub[-1]["text"])
 
+    cues, _ = apply_dictionary_cues(cues)   # apply personal corrections before writing the SRT
     write_srt(srt, cues)
     emit(stage="sync", percent=99, eta=0, elapsed=time.time() - t0 - paused_for)
     viewer = make_viewer(video_path, cues)
     return {"srt": srt, "cues": cues, "viewer": viewer, "count": len(cues), "video": video_path}
+
+
+if __name__ == "__main__":
+    # self-check: cue splitting keeps every chunk within the word cap and preserves time order
+    long = " ".join(f"w{i}" for i in range(20))          # 20 words → ceil(20/6)=4 cues
+    parts = _split_text(long, 10.0, 20.0)
+    assert len(parts) == 4, parts
+    assert all(len(p["text"].split()) <= MAX_CUE_WORDS for p in parts), parts
+    assert parts[0]["start"] == 10.0 and abs(parts[-1]["end"] - 20.0) < 0.01, parts
+    assert all(parts[i]["end"] <= parts[i + 1]["start"] + 0.01 for i in range(len(parts) - 1)), parts
+    assert _split_text("short line", 0, 3) == [{"start": 0, "end": 3, "text": "short line"}]
+    assert _split_text("", 0, 1) == []
+
+    # dictionary: whole-word replace only — must not touch letters inside another word
+    rules = [{"from": "פאי תורץ", "to": "PyTorch"}, {"from": "נטוורק", "to": "network"}]
+    cues = [{"start": 0, "end": 1, "text": "השתמשנו ב פאי תורץ היום"},
+            {"start": 1, "end": 2, "text": "נטוורקינג"},          # substring — must stay untouched
+            {"start": 2, "end": 3, "text": "נטוורק חדש"}]
+    _, n = apply_dictionary_cues(cues, rules)
+    assert cues[0]["text"] == "השתמשנו ב PyTorch היום", cues[0]
+    assert cues[1]["text"] == "נטוורקינג", cues[1]              # not replaced inside a longer word
+    assert cues[2]["text"] == "network חדש", cues[2]
+    assert n == 2, n
+    print("engine self-check OK")

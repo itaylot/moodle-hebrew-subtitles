@@ -24,6 +24,10 @@ if not exist "%VENV%\Scripts\pythonw.exe" (
   "%VENV%\Scripts\python.exe" tools\register_protocol.py
   echo.
   echo Done! A "Subtitle Sidekick" icon was added to your Desktop.
+) else (
+  REM already set up: keep dependencies fresh so a pulled update's new requirements apply.
+  REM Fast when nothing changed; silent so the launch still feels instant.
+  "%VENV%\Scripts\python.exe" -m pip install -r requirements.txt --quiet --disable-pip-version-check
 )
 
 start "" "%~dp0%VENV%\Scripts\pythonw.exe" "%~dp0app.py"

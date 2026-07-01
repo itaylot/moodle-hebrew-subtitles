@@ -18,9 +18,11 @@ Built primarily for Hebrew lectures (using a Hebrew-specialized Whisper model), 
 ## Table of contents
 
 - [Highlights](#-highlights)
+- [Two ways to transcribe](#-two-ways-to-transcribe)
 - [Installation](#-installation-one-time)
 - [How to use](#-how-to-use)
 - [Fast cloud mode (optional)](#-fast-cloud-mode-optional)
+- [Updating](#-updating)
 - [Privacy](#-privacy)
 - [Engineering challenges solved](#️-engineering-challenges-solved)
 - [Advanced — command line](#advanced--command-line)
@@ -38,10 +40,32 @@ Built primarily for Hebrew lectures (using a Hebrew-specialized Whisper model), 
 - ⚡ **Automatic GPU detection** — NVIDIA is used automatically when present; a "fast" toggle drops to a lighter model on CPU-only machines.
 - 🔎 **Subtitle search** with direct jump-to-moment.
 - ✏️ **Built-in subtitle editor** for fixing transcription mistakes.
+- 📝 **Personal correction dictionary** — recurring mistakes (lecturer names, technical terms, English words like "PyTorch") are auto-corrected after every transcription, matched on whole-word boundaries so valid text is never damaged.
 - 📄 **Export** transcripts to TXT / Word.
+- ⬆️ **One-click updates** — the app checks GitHub for a newer version and can update itself; your library and settings are never touched.
 - ⛶ **Full player**: fullscreen, 10-second skip, 0.5x–2x playback speed, and subtitle size/background controls (🅰).
 - 📖 **Built-in usage guide** — a ❓ button in the top bar opens an in-app guide.
 - 🔒 **Local by default** — no cloud, no account; audio never leaves your machine unless you explicitly opt into cloud mode.
+
+## 🎬 Two ways to transcribe
+
+The flagship experience is the **personal GPU server** — fastest, and highest quality in both Hebrew and English. **Local (Lite)** mode is the zero-setup fallback: fully private, works with no account and no cloud, just slower and less accurate. Local mode is always the default; the GPU server is an optional, one-time setup on your own cloud account.
+
+| | 🔒 Local (Lite) | ☁ GPU server (recommended) |
+|---|---|---|
+| **Privacy** | Audio never leaves your machine | Audio goes only to *your own* endpoint |
+| **Speed** | Slower (minutes on CPU) | Fastest (seconds–minutes) |
+| **Quality** | Good Hebrew; weaker English | Best, Hebrew **and** English |
+| **Setup** | None — works out of the box | One-time RunPod endpoint (~5 min) |
+| **Cost** | Free | Pay-per-use on your RunPod account |
+| **Account** | None | Your own RunPod account |
+| **Best for** | Quick, private, offline use | Heavy lectures, English, best accuracy |
+
+> Local (Lite) itself has two levels — **"quality"** (more accurate, slower) and **"fast"** (quicker, lower accuracy) — chosen from the transcription-mode menu. Language (Hebrew / English / auto-detect) is a separate per-lecture choice, not a mode. See [Fast cloud mode](#-fast-cloud-mode-optional) to set up the GPU server.
+
+## 🎥 Demo
+
+A self-playing product tour of the real interface (no setup, no backend) lives at [`ui/demo.html`](ui/demo.html) — open it in a browser to watch the UI drive itself through the home dashboard, a transcription, the player with live Hebrew captions, and in-transcript search. It's built for screen-recording a short demo clip (pair it with a recorder like [Cap](https://cap.so/) or FocuSee for gentle zoom and cursor highlighting).
 
 ---
 
@@ -142,6 +166,17 @@ Replace `YOUR_DOCKERHUB_USERNAME` with your Docker Hub username. The `build` ste
 
 </details>
 
+## ⬆ Updating
+
+The app is distributed as a downloadable folder, and your data (courses, lectures, settings) is stored separately under `Videos\Subtitle Sidekick` — so updating the app never risks your library.
+
+- **In-app (recommended):** open **⚙ Settings → ⬆ Version updates → Check for updates**. If a newer version exists, **Update now** closes the app, downloads the latest code from GitHub, reinstalls dependencies, and relaunches — one click, nothing manual.
+- **Manual:** download the ZIP again from GitHub, extract over the existing folder (choose *Overwrite*), and run `run.bat`. Your transcribed lectures and settings are untouched.
+
+Version tracking is a plain `version.txt`; the update check compares it against the copy on GitHub. There is no telemetry and no auto-download without your click.
+
+---
+
 ## 🔒 Privacy
 
 Local mode (the default): everything runs on your machine — audio never leaves the computer and is never stored anywhere.
@@ -184,11 +219,14 @@ To watch: open the video in VLC (if the `.srt` sits next to the video with the s
 
 ```
 app.py                      launches the pywebview window + Python bridge
-engine.py                   transcription engine (faster-whisper / ivrit-ai) + export
+engine.py                   transcription engine (faster-whisper / ivrit-ai) + export + correction dictionary
 worker.py                   runs a local transcription in a separate process (so it can be paused/cancelled)
 cloud_backend.py            transcription via a personal GPU server (RunPod) — see fast cloud mode
 ui/                         the user interface (HTML/CSS/JS + local fonts)
-run.bat                     launcher (auto-install + desktop icon on first run)
+  demo.html                 self-playing product tour of the real UI (for screen-recording a demo)
+run.bat                     launcher (auto-install on first run; refreshes dependencies on later runs)
+update.bat                  one-click updater (downloads latest from GitHub, keeps your data)
+version.txt                 current app version (compared against GitHub for the update check)
 requirements.txt            dependencies
 tools/
   transcribe_to_srt.py      command-line transcription: file → SRT

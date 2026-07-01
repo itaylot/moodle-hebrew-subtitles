@@ -13,6 +13,7 @@
     <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
     <symbol id="i-film" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
@@ -27,7 +28,7 @@
       <button class="jobpill" id="jobPill" hidden>⏳ <span id="jobPct">0%</span></button>
       <div class="barsp"></div>
       <button class="themebtn" id="helpBtn" title="מדריך שימוש"><svg class="ic"><use href="#i-help"/></svg></button>
-      <button class="themebtn" id="themeBtn" title="מצב בהיר/כהה"><svg class="ic"><use href="#i-moon"/></svg></button>
+      <button class="themebtn themetoggle" id="themeBtn" title="מעבר למצב כהה" aria-label="מעבר למצב כהה"><svg class="ic ic-moon"><use href="#i-moon"/></svg><svg class="ic ic-sun"><use href="#i-sun"/></svg></button>
       <div class="barx">
         <span class="d1" id="winClose" title="סגירה"></span>
         <span class="d2" id="winMin" title="מזעור"></span>
@@ -98,14 +99,19 @@
         <div class="courserow">
           <span class="courselbl">קורס:</span>
           <select class="coursesel" id="courseSel"><option value="">ללא קורס</option></select>
+          <button class="course-add" id="courseAddBtn" title="יצירת קורס חדש">+ קורס</button>
+        </div>
+        <div class="newcourse-inline" id="courseAddRow" hidden>
+          <input class="urlin" id="courseAddIn" placeholder="שם הקורס החדש…" />
+          <button class="urlbtn course-add-ok" id="courseAddOk">צור ובחר</button>
         </div>
 
         <div class="moderow">
           <span class="modelbl">מצב תמלול:</span>
           <select class="coursesel" id="modeSel">
-            <option value="local_accurate">מקומי — מדויק (פרטי, ברירת מחדל)</option>
-            <option value="local_fast">מקומי — מהיר (פחות מדויק)</option>
-            <option value="cloud">☁ שרת GPU (ענן) — מהיר מאוד</option>
+            <option value="cloud">☁ שרת GPU — מומלץ (מהיר ואיכותי)</option>
+            <option value="local_accurate">מקומי (Lite) — איכות, ללא שרת</option>
+            <option value="local_fast">מקומי (Lite) — מהיר, איכות נמוכה</option>
           </select>
         </div>
 
@@ -133,7 +139,8 @@
       <section class="view" id="view-proc" hidden>
         <div class="kicker">יצירת כתוביות</div>
         <div class="filechip"><span class="fcic">🎞</span><span id="procName"></span></div>
-        <div class="stage" id="stageHeading">מתמלל את ההרצאה לעברית…</div>
+        <div class="procmeta" id="procMeta" hidden></div>
+        <div class="stage" id="stageHeading">מתמלל את ההרצאה…</div>
         <div class="prog">
           <div class="bar2" id="bar2"><div class="fill" id="fill"><div class="speedlines"></div></div></div>
           <div class="pct" id="pct">0%</div>
@@ -193,6 +200,7 @@
         <div class="transcript" id="transcript">
           <div class="tc-head">
             <input class="tc-search" id="tcSearch" placeholder="🔎 חיפוש בכתוביות…" />
+            <button class="tc-act" id="dictAddSelBtn" title="הוספת המילה שבחרתם למילון התיקונים">＋ מילון</button>
             <button class="tc-act" id="saveBtn">💾 שמור</button>
             <button class="tc-act" id="txtBtn">TXT</button>
             <button class="tc-act" id="docxBtn">Word</button>
@@ -208,15 +216,15 @@
         <div class="guide">
           <p class="guide-intro">Subtitle Sidekick מתמלל הרצאות מוקלטות לעברית (ולשפות נוספות) ומציג כתוביות מסונכרנות. הכול רץ אצלכם במחשב כברירת מחדל — בלי חשבון ובלי עלות.</p>
 
-          <h3>🎬 שלושת מצבי התמלול</h3>
+          <h3>🎬 מצבי התמלול</h3>
           <ul>
-            <li><b>מקומי — מדויק</b>: מודל עברית ייעודי, הכי מדויק לעברית. רץ במחשב, פרטי לחלוטין. איטי יותר ללא כרטיס מסך.</li>
-            <li><b>מקומי — מהיר</b>: מודל קל יותר, מהיר בהרבה על מעבד רגיל, בתמורה למעט דיוק. תומך גם באנגלית וזיהוי-אוטומטי.</li>
-            <li><b>☁ שרת GPU (ענן)</b>: הכי מהיר — דורש הקמת שרת RunPod אישי (חד-פעמי). האודיו עולה רק לשרת שלכם.</li>
+            <li><b>☁ שרת GPU — מומלץ</b>: המצב המרכזי. הכי מהיר, והכי איכותי גם לעברית וגם לאנגלית. דורש הקמת שרת RunPod אישי חד-פעמית; האודיו עולה רק לשרת שלכם. ראו README.</li>
+            <li><b>מקומי (Lite)</b>: עובד מיד, בלי חשבון ובלי ענן — פרטי לחלוטין. מתאים כשאין שרת GPU. איטי יותר, ובאנגלית איכות התמלול נמוכה יותר מהשרת. יש שתי רמות: "איכות" (מדויק יותר, איטי) ו"מהיר" (מהיר, פחות מדויק).</li>
           </ul>
 
           <h3>🌍 בחירת שפה</h3>
-          <p>לכל הרצאה בוחרים שפה: <b>עברית</b> (מודל ייעודי), <b>אנגלית</b>, או <b>זיהוי אוטומטי</b>. לתוכן מעורב עברית-אנגלית — נסו "זיהוי אוטומטי" במצב מקומי.</p>
+          <p>לכל הרצאה בוחרים שפה: <b>עברית</b> (מודל ייעודי), <b>אנגלית</b>, או <b>זיהוי אוטומטי</b>.</p>
+          <p class="guide-note">💡 <b>שפה מעורבת:</b> תמלול של עברית ואנגלית יחד עשוי להיות פחות מדויק. אם ההרצאה היא בעיקר בשפה אחת — עדיף לבחור אותה במפורש. בחרו "זיהוי אוטומטי" רק כשיש שימוש משמעותי בשתי השפות. בכל מקרה, מצב שרת ה-GPU נותן את התוצאה הטובה ביותר לתוכן מעורב.</p>
 
           <h3>➕ הוספת הרצאה</h3>
           <ul>
@@ -305,6 +313,21 @@
       </select>
     </div>
 
+    <div class="settings-section">📝 מילון תיקונים</div>
+    <div class="settings-hint">
+      החליפו טעויות תמלול חוזרות (שמות מרצים, מונחים, מילים באנגלית). התיקונים מוחלים אוטומטית
+      על תמלולים חדשים. ההחלפה היא על מילים שלמות בלבד — לא תפגע בטקסט תקין.
+    </div>
+    <div class="dict-list" id="dictList"></div>
+    <div class="dict-addrow">
+      <input class="newcourse-in dict-in" id="dictFrom" placeholder="טעות (מקור)" />
+      <span class="dict-arrow">⟵</span>
+      <input class="newcourse-in dict-in" id="dictTo" placeholder="תיקון" />
+      <button class="newcourse-btn dict-add" id="dictAddBtn" title="הוספת תיקון">＋</button>
+    </div>
+    <button class="dict-apply" id="dictApplyBtn">החלה על כל הספרייה הקיימת</button>
+    <div class="settings-status" id="dictStatus"></div>
+
     <div class="settings-section">☁ שרת ענן <span class="settings-opt">(אופציונלי)</span></div>
     <div class="settings-hint">
       למצב "שרת GPU" — כל משתמש מגדיר שרת משלו (לדוגמה חשבון RunPod אישי).
@@ -332,6 +355,17 @@
       <div class="cost-note">הערכה בלבד — RunPod מחייב גם על זמני התנעה ועיגול, כך שייתכן הפרש קל מהחשבון בפועל.</div>
       <button class="cost-reset" id="costReset">איפוס מונה</button>
     </div>
+
+    <div class="settings-section">⬆ עדכוני גרסה</div>
+    <div class="update-box">
+      <div class="update-row">
+        <span class="update-ver" id="updateVer">גרסה נוכחית: …</span>
+        <button class="update-check" id="updateCheckBtn">בדיקת עדכונים</button>
+      </div>
+      <div class="update-status" id="updateStatus"></div>
+      <button class="newcourse-btn update-now" id="updateNowBtn" hidden>⬆ עדכן עכשיו (האפליקציה תיסגר ותיפתח מחדש)</button>
+      <div class="update-note">העדכון מוריד את הגרסה האחרונה מ-GitHub ומחליף את קוד האפליקציה. הקורסים, ההרצאות וההגדרות שלכם נשמרים בנפרד ולא מושפעים.</div>
+    </div>
   </aside>
 
   <!-- first-run onboarding: explains the three transcription modes -->
@@ -340,9 +374,8 @@
       <div class="onboard-title">ברוכים הבאים ל-Subtitle Sidekick 👋</div>
       <div class="onboard-text">תמללו הרצאות מוקלטות לעברית עם כתוביות מסונכרנות. בחרו לכל הרצאה איך לתמלל:</div>
       <ul class="onboard-modes">
-        <li><span class="om-ic">🔒</span><div><b>מקומי — מדויק</b><span>רץ במחשב שלכם, פרטי לחלוטין. איטי יותר. ברירת מחדל.</span></div></li>
-        <li><span class="om-ic">⚡</span><div><b>מקומי — מהיר</b><span>מהיר יותר על חשבון מעט דיוק.</span></div></li>
-        <li><span class="om-ic">☁</span><div><b>שרת GPU (ענן)</b><span>הכי מהיר. דורש הגדרת שרת אישי; האודיו עולה לשרת שלכם.</span></div></li>
+        <li><span class="om-ic">☁</span><div><b>שרת GPU — מומלץ</b><span>הכי מהיר ואיכותי, לעברית ולאנגלית. דורש הגדרת שרת אישי חד-פעמית; האודיו עולה רק לשרת שלכם.</span></div></li>
+        <li><span class="om-ic">🔒</span><div><b>מקומי (Lite)</b><span>עובד מיד בלי חשבון ובלי ענן, פרטי לחלוטין. איטי יותר ופחות מדויק — מתאים כשאין שרת GPU.</span></div></li>
       </ul>
       <div class="onboard-tip">💡 אפשר להוסיף כמה הרצאות לתור, לסדר אותן, ולתת להן לרוץ ברקע.</div>
       <button class="onboard-btn" id="onboardClose">הבנתי, בואו נתחיל</button>

@@ -21,7 +21,24 @@ import webview
 import engine
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+VERSION_FILE = os.path.join(HERE, "version.txt")
 WORKER = os.path.join(HERE, "worker.py")
+
+
+def _read_version():
+    try:
+        with open(VERSION_FILE, encoding="utf-8") as f:
+            return f.read().strip() or "0.0.0"
+    except Exception:
+        return "0.0.0"
+
+
+def _version_tuple(v):
+    """'1.2.10' → (1, 2, 10) for correct numeric comparison; non-numeric parts sort as 0."""
+    parts = []
+    for p in str(v).strip().split("."):
+        parts.append(int(p) if p.isdigit() else 0)
+    return tuple(parts)
 INDEX = os.path.join(HERE, "ui", "index.html")
 ICON = os.path.join(HERE, "ui", "icons", "app.ico")
 CRASH_LOG = os.path.join(HERE, "crash.log")
@@ -313,11 +330,54 @@ class Api:
     def set_lecture_course(self, video, course):
         return engine.move_lecture(video, course)   # actually relocates the files, not just the label
 
-    def remove_lecture(self, video):
-        return engine.remove_lecture(video)
+    def remove_lecture(self, video, delete_files=False):
+        return engine.remove_lecture(video, delete_files)
 
     def open_lecture(self, video):
         return engine.open_lecture(video)
+
+    # ── personal correction dictionary ──
+    def get_dictionary(self):
+        return engine.load_dictionary()
+
+    def save_dictionary(self, rules):
+        return engine.save_dictionary(rules)
+
+    def reapply_dictionary(self):
+        return engine.reapply_dictionary_library()
+
+    def apply_dictionary_to_cues(self, cues):
+        return engine.apply_dictionary_cues(cues)[0]
+
+    # ── updates: compare local version.txt with the one on GitHub (no auto-download) ──
+    def version(self):
+        return _read_version()
+
+    def check_update(self):
+        """Returns {current, latest, update_available}. Never raises — network issues → available:False."""
+        current = _read_version()
+        latest = current
+        try:
+            import urllib.request
+            url = "https://raw.githubusercontent.com/itaylot/subtitle-sidekick/main/version.txt"
+            with urllib.request.urlopen(url, timeout=6) as r:
+                latest = r.read().decode("utf-8").strip() or current
+        except Exception as e:  # noqa: BLE001
+            _log("check_update: " + str(e))
+            return {"current": current, "latest": current, "update_available": False, "error": True}
+        return {"current": current, "latest": latest,
+                "update_available": _version_tuple(latest) > _version_tuple(current)}
+
+    def run_update(self):
+        """Launch update.bat detached (it closes the app, replaces the code, relaunches)."""
+        bat = os.path.join(HERE, "update.bat")
+        if not os.path.isfile(bat):
+            return "ERR: update.bat not found"
+        try:
+            os.startfile(bat)  # noqa: SLF001 — detached from this process, survives the app closing
+            return True
+        except Exception as e:  # noqa: BLE001
+            return "ERR: " + str(e)
 
     def rename_lecture(self, video, title):
         return engine.rename_lecture(video, title)
