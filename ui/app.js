@@ -694,6 +694,7 @@ function buildVtt(cs) {
   _vttUrl = URL.createObjectURL(new Blob(["WEBVTT\n\n" + body], { type: "text/vtt" }));
   $("vtt").src = _vttUrl;
   if (video.textTracks[0]) video.textTracks[0].mode = "showing";
+  $("ccToggle").classList.remove("off");   // captions start visible for each new lecture
 }
 
 let cues = [];
@@ -1049,19 +1050,26 @@ function lecturesByCourse() {
 }
 
 function renderWidgets() {
+  const wrap = $("statWidgets");
+  wrap.innerHTML = "";
   const total = library.lectures.length;
-  if (!total) { $("statWidgets").innerHTML = ""; return; }
+  if (!total) return;
   const viewed = library.lectures.filter((l) => l.viewed).length;
+  const firstUnwatched = library.lectures.find((l) => !l.viewed);
   const items = [
-    { ic: "🎬", num: total, lbl: "הרצאות" },
-    { ic: "👁", num: viewed, lbl: "נצפו" },
-    { ic: "⏳", num: total - viewed, lbl: "ממתינות" },
-    { ic: "📚", num: library.courses.length, lbl: "קורסים" },
+    { ic: "🎬", num: total, lbl: "הרצאות", act: openDrawer },
+    { ic: "👁", num: viewed, lbl: "נצפו", act: openDrawer },
+    { ic: "⏳", num: total - viewed, lbl: "ממתינות",
+      act: () => (firstUnwatched ? openLecture(firstUnwatched.video) : openDrawer()) },
+    { ic: "📚", num: library.courses.length, lbl: "קורסים", act: openDrawer },
   ];
-  $("statWidgets").innerHTML = items.map((s) =>
-    `<div class="widget"><div class="w-ic">${s.ic}</div>` +
-    `<div class="w-num">${s.num}</div><div class="w-lbl">${esc(s.lbl)}</div></div>`
-  ).join("");
+  for (const s of items) {
+    const el = document.createElement("button");
+    el.className = "widget";
+    el.innerHTML = `<div class="w-ic">${s.ic}</div><div class="w-num">${s.num}</div><div class="w-lbl">${esc(s.lbl)}</div>`;
+    el.onclick = s.act;
+    wrap.appendChild(el);
+  }
 }
 
 function renderResume() {
@@ -1229,6 +1237,15 @@ function showSubtitleMenu(anchorEl) {
   document.addEventListener("click", closeOnOutside, true);
 }
 $("subBtn").addEventListener("click", (e) => { e.stopPropagation(); showSubtitleMenu($("subBtn")); });
+
+// CC toggle — show/hide the native captions (language-neutral; no hardcoded language label)
+$("ccToggle").addEventListener("click", () => {
+  const tt = video.textTracks[0];
+  if (!tt) return;
+  const on = tt.mode !== "showing";
+  tt.mode = on ? "showing" : "hidden";
+  $("ccToggle").classList.toggle("off", !on);
+});
 
 // open a saved lecture in the player (reads SRT from disk). seekTo (seconds) is optional.
 async function openLecture(path, seekTo) {
